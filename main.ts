@@ -1,81 +1,207 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {
+	Plugin, TFile, TFolder
+} from 'obsidian';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
+interface WTCSettings {
 	mySetting: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: WTCSettings = {
 	mySetting: 'default'
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+class TaskDate {
+	year: number;
+	month: number;
+	day: number;
+
+	constructor(year: number, month: number, day: number) {
+		this.year = year;
+		this.month = month;
+		this.day = day;
+	}
+
+	toString() {
+		return `${this.year}/${this.month}/${this.day}`;
+	}
+
+	compare(another: TaskDate): number {
+		const y = this.year - another.year;
+		if (y !== 0) return y;
+		const m = this.month - another.month;
+		if (m !== 0) return m;
+		return this.day - another.day;
+	}
+}
+
+interface Task {
+	src: string,
+	date: TaskDate | null;
+	desc: string;
+}
+
+function getEpochTimeMillis(): number {
+	return new Date().getTime();
+}
+
+function parseListElementsToTasks(src: string, elements: string[]) {
+	// Whether date line exists or not. If there aren't date line,
+	// then this hunk is not one with tasks.
+	let dateLineExists = false;
+	const tasks: Task[] = [];
+	let currentDate: TaskDate | null = null;
+	for (const element of elements) {
+		// Match month (e.g., "- 2025/3/1")
+		const dateMatch = element.match(/^(\d+)\/(\d+)\/(\d+)$/);
+		if (dateMatch) {
+			currentDate = new TaskDate(
+				parseInt(dateMatch[1]),
+				parseInt(dateMatch[2]),
+				parseInt(dateMatch[3])
+			);
+			dateLineExists = true;
+		} else {
+			tasks.push({
+				src: src,
+				date: currentDate,
+				desc: element
+			})
+		}
+	}
+	return dateLineExists ? tasks : [];
+}
+
+function parseMarkdownToTasks(src: string, markdown: string): Task[] {
+    const lines = markdown.split("\n");
+    const tasks: Task[] = [];
+	//  Elements in a hunk
+	const listElements: string[] = [];
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+
+		// Match list (e.g., "- aaa")
+		const listMatch = trimmed.match(/^-\s+(.+)$/);
+		if (listMatch) {
+			listElements.push(listMatch[1]);
+		}
+		// If we exited from a hunk of list
+		if (!listMatch && listElements.length > 0) {
+			tasks.push(...parseListElementsToTasks(src, listElements));
+			listElements.splice(0);
+		}
+    }
+	if (listElements.length > 0) {
+		tasks.push(...parseListElementsToTasks(src, listElements));
+	}
+
+    return tasks;
+}
+
+// noinspection JSUnusedGlobalSymbols
+export default class WTCPlugin extends Plugin {
+	settings: WTCSettings;
+
+	// Key: root path, Value: epoch time seconds
+	latestUpdateTimes: Map<string, number> = new Map();
+	// Key: root path, Value: tasks
+	tasksMap: Map<string, Task[]> = new Map();
+
+	async showTasks(src: string, el: HTMLElement) {
+		await this.collectTasksIfNeeded(src.trim());
+		const tasks = this.tasksMap.get(src.trim());
+		if (!tasks) throw "Cache may be broken.";
+		if (tasks.length === 0) {
+			el.textContent = "WTC: No tasks found.";
+			return;
+		}
+
+		const datedTasksMap: Map<TaskDate, Task[]> = new Map();
+		const unknownDateTasks: Task[] = [];
+		for (const task of tasks) {
+			if (!task.date) {
+				unknownDateTasks.push(task);
+			} else {
+				let currentTasks = datedTasksMap.get(task.date);
+				if (!currentTasks) {
+					currentTasks = [];
+					datedTasksMap.set(task.date, currentTasks);
+				}
+				currentTasks.push(task);
+			}
+		}
+		const rootUL = el.createEl("ul");
+		const taskDates = Array.from(datedTasksMap.keys())
+			.sort((a, b) => a.compare(b))
+		for (const date of taskDates) {
+			const datedTasks = datedTasksMap.get(date);
+			if (!datedTasks) { throw "Unreachable" }
+			const datedLI = rootUL.createEl("li");
+			datedLI.textContent = date.toString();
+			const childUL = datedLI.createEl("ul");
+			for (const task of datedTasks) {
+				const taskLI = childUL.createEl("li");
+				taskLI.textContent = `${task.desc} (${task.src})`;
+			}
+		}
+		const unknownLI = rootUL.createEl("li");
+		unknownLI.textContent = "Unknown";
+		const unknownUL = unknownLI.createEl("ul");
+		for (const task of unknownDateTasks) {
+			const taskLI = unknownUL.createEl("li");
+			taskLI.textContent = `${task.desc} (${task.src})`;
+		}
+	}
+
+	async collectTasksIfNeeded(rootPath: string) {
+		const latestUpdateTime = this.latestUpdateTimes.get(rootPath);
+		// Do nothing if we already have collected tasks and they are fresh enough.
+		if (latestUpdateTime !== undefined
+			&& getEpochTimeMillis() < (latestUpdateTime + 1000)) {
+			console.debug("Debounce", rootPath);
+			return;
+		}
+		this.latestUpdateTimes.set(rootPath, getEpochTimeMillis());
+
+		console.debug("Update", rootPath);
+
+		const rootFolder = this.app.vault.getFolderByPath(rootPath);
+		if (!rootFolder) {
+			throw "No root folder found";
+		}
+
+		const folderStack: TFolder[] = [ rootFolder];
+		const tasks: Task[] = [];
+		while (folderStack.length > 0) {
+			const got = folderStack.pop();
+			if (!got) throw "Unreachable";
+			for (const child of got.children) {
+				if (child instanceof TFolder) {
+					folderStack.push(child);
+				} else if (child instanceof TFile) {
+					const content = await this.app.vault.cachedRead(child);
+					tasks.push(...parseMarkdownToTasks(child.name, content));
+				} else {
+					throw "Unreachable";
+				}
+			}
+		}
+		this.tasksMap.set(rootPath, tasks);
+	}
+
+
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
+		this.registerMarkdownCodeBlockProcessor("weekly-task-collect", async (src, el) => {
+			try {
+				await this.showTasks(src, el);
+			} catch (e) {
+				console.error(e);
+				el.textContent = "WTC: an error occurred";
 			}
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
 	onunload() {
@@ -87,48 +213,6 @@ export default class MyPlugin extends Plugin {
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		//await this.saveData(this.settings);
 	}
 }
