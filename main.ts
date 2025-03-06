@@ -116,24 +116,25 @@ export default class WTCPlugin extends Plugin {
 			return;
 		}
 
-		const datedTasksMap: Map<TaskDate, Task[]> = new Map();
+		const datedTasksMap: Map<string, Task[]> = new Map();
 		const unknownDateTasks: Task[] = [];
+
+		tasks.sort((a, b) => (a.date && b.date) ? a.date.compare(b.date) : 0);
+
 		for (const task of tasks) {
 			if (!task.date) {
 				unknownDateTasks.push(task);
 			} else {
-				let currentTasks = datedTasksMap.get(task.date);
+				let currentTasks = datedTasksMap.get(task.date.toString());
 				if (!currentTasks) {
 					currentTasks = [];
-					datedTasksMap.set(task.date, currentTasks);
+					datedTasksMap.set(task.date.toString(), currentTasks);
 				}
 				currentTasks.push(task);
 			}
 		}
 		const rootUL = el.createEl("ul");
-		const taskDates = Array.from(datedTasksMap.keys())
-			.sort((a, b) => a.compare(b))
-		for (const date of taskDates) {
+		for (const date of datedTasksMap.keys()) {
 			const datedTasks = datedTasksMap.get(date);
 			if (!datedTasks) { throw "Unreachable" }
 			const datedLI = rootUL.createEl("li");
