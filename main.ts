@@ -19,7 +19,7 @@ function getEpochTimeMillis(): number {
 
 function createTaskListHTML(html: HTMLElement, tasks: MDListNode) {
 	const rootLI = html.createEl("li");
-	rootLI.textContent = tasks.text;
+	rootLI.textContent = tasks.text + ` (${tasks.srcPath})`;
 	const tasksUL = rootLI.createEl("ul");
 	for (const task of tasks.children) {
 		createTaskListHTML(tasksUL, task);
@@ -87,8 +87,7 @@ export default class WTCPlugin extends Plugin {
 					folderStack.push(child);
 				} else if (child instanceof TFile) {
 					const content = await this.app.vault.cachedRead(child);
-					const md = lib.parseListHunkToTree(content.split("\n"));
-					const taskRootChild = lib.parseMDRootToTaskRoot(md);
+					const taskRootChild = lib.parseContentToTasks(child.path, content);
 					lib.mergeTaskRoots(taskRootChild, taskRoot);
 				} else {
 					throw "Unreachable";

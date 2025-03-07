@@ -39,18 +39,20 @@ const WEEK_END_DAY = 0; // 0 for monday
 
 export class MDListNode {
 	parent: MDListNode | undefined;
+	srcPath: string;
 	text: string;
 	children: MDListNode[] = [];
 
-	constructor(parent: MDListNode | undefined, text: string) {
+	constructor(parent: MDListNode | undefined, srcPath: string, text: string) {
 		this.parent = parent;
+		this.srcPath = srcPath;
 		this.text = text;
 	}
 }
 
 export class MDListRootNode extends MDListNode {
 	constructor() {
-		super(undefined, "ROOT");
+		super(undefined, "ROOT", "ROOT");
 	}
 }
 
@@ -65,20 +67,22 @@ const REGEX_MD_LIST_SPACE = /^(\s*)-\s+(.+)/;
 const REGEX_MD_LIST_TAB = /^(\t*)-\s+(.+)/;
 
 class MDListLine {
+	srcPath: string;
 	text: string;
 	regexArr: RegExpMatchArray;
 
-	private constructor(text: string, regexArr: RegExpMatchArray) {
+	private constructor(srcPath: string, text: string, regexArr: RegExpMatchArray) {
+		this.srcPath = srcPath;
 		this.text = text;
 		this.regexArr = regexArr;
 	}
 
-	static create(tab: boolean, text: string): MDListLine | undefined {
+	static create(tab: boolean, srcPath: string, text: string): MDListLine | undefined {
 		const match = text.match(tab ? REGEX_MD_LIST_TAB : REGEX_MD_LIST_SPACE);
 		if (!match) {
 			return undefined;
 		} else {
-			return new MDListLine(text, match);
+			return new MDListLine(srcPath, text, match);
 		}
 	}
 
@@ -87,7 +91,7 @@ class MDListLine {
 	}
 
 	getIndentLevel(step: number) {
-		if (this.getIndentCharLen() % step !== 0) throw new Error("Invalid step");
+		if (this.getIndentCharLen() % step !== 0) return undefined;
 		return this.getIndentCharLen() / step;
 	}
 
@@ -96,7 +100,7 @@ class MDListLine {
 	}
 
 	toNode() {
-		return new MDListNode(undefined, this.getContent());
+		return new MDListNode(undefined, this.srcPath, this.getContent());
 	}
 }
 
@@ -109,13 +113,54 @@ export function getMinimumIndentStep(lines: MDListLine[]) {
 	return min === -1 ? 2 : min;
 }
 
-export function parseListHunkToTree(rawLines: string[]): MDListNode {
+function parseError(path: string, msg: string) {
+	return new Error(path + ": Unable to parse: " + msg);
+}
+
+class Hunk {
+	lines: string[]
+
+	constructor(lines: string[]) {
+		this.lines = Array.from(lines);
+	}
+}
+
+export function parseContentToTasks(srcPath: string, content: string) {
+	const hunks = parseContentToListHunks(srcPath, content);
+	const taskRoot = new TaskRoot();
+	for (const hunk of hunks) {
+		const md = parseListHunkToTree(srcPath, hunk.lines);
+		const childRoot = parseMDRootToTaskRoot(srcPath, md);
+		mergeTaskRoots(childRoot, taskRoot);
+	}
+	return taskRoot;
+}
+
+export function parseContentToListHunks(srcPath: string, content: string): Hunk[] {
+	const buffer: string[] = []
+	const hunks: Hunk[] = [];
+	for (const line of content.split("\n")) {
+		const isListElement = line.trimStart()[0] === '-';
+		if (buffer.length !== 0 && !isListElement) {
+			hunks.push(new Hunk(buffer));
+			buffer.splice(0);
+		}
+		if (isListElement) {
+			buffer.push(line);
+		}
+	}
+	hunks.push(new Hunk(buffer));
+
+	return hunks;
+}
+
+export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDListNode {
 	const isTab = isTabIndent(rawLines);
 	const lines = rawLines
 		.map((line) => {
-			const mdLine =  MDListLine.create(isTab, line);
+			const mdLine =  MDListLine.create(isTab, srcPath, line);
 			if (mdLine === undefined) {
-				throw new Error("Not a Markdown list line: " + line);
+				throw parseError(srcPath, "Not a Markdown list line: " + line);
 			}
 			return mdLine;
 		});
@@ -128,8 +173,11 @@ export function parseListHunkToTree(rawLines: string[]): MDListNode {
 		const node = line.toNode();
 
 		const indentLevel = line.getIndentLevel(indentStep);
+		if (indentLevel === undefined) {
+			throw parseError(srcPath, "Malformed indentation")
+		}
 		if (indentLevel - lastIndentLevel > 1) {
-			throw new Error("Indent level increased: from " + lastIndentLevel + " to " + indentLevel);
+			throw parseError(srcPath, "Indent level increased: from " + lastIndentLevel + " to " + indentLevel);
 		}
 
 		if (indentLevel == lastIndentLevel) {
@@ -194,33 +242,45 @@ export class TaskDay {
 	}
 }
 
-function parseWeekStr(s: string) {
-	const dates = s.split(DATE_RANGE_DELIMITER)
-		.map(value => {
-			const m = moment(value, DATE_FORMAT, true);
-			if (!m.isValid()) {
-				throw new Error('Invalid date: ' + value);
-			}
-			return YMD.fromMoment(m);
-		});
-	if (dates.length !== 2) {
-		throw new Error('Invalid week str: ' + s);
+function parseWeekStr(s: string): DateRange | string {
+	const dates: YMD[] = [];
+	for (const rawDate of s.split(DATE_RANGE_DELIMITER)) {
+		const m = moment(rawDate, DATE_FORMAT, true);
+		if (!m.isValid()) {
+			return "Invalid date format";
+		}
+		dates.push(YMD.fromMoment(m));
 	}
-	return new DateRange(dates[0], dates[1]);
+	if (dates.length !== 2) {
+		return "Invalid length of data: " + dates.length;
+	}
+	try {
+		return new DateRange(dates[0], dates[1]);
+	} catch (e) {
+		return "Invalid range";
+	}
 }
 
-export function parseMDRootToTaskRoot(mdRoot: MDListRootNode) {
+export function parseMDRootToTaskRoot(srcPath: string, mdRoot: MDListRootNode) {
 	const root = new TaskRoot();
 	for (const weekMD of mdRoot.children) {
 		const weekRange = parseWeekStr(weekMD.text);
-		const taskWeek = new TaskWeek(weekRange);
+		if (typeof weekRange === "string") {
+			throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")");
+		}
+		let taskWeek: TaskWeek;
+		try {
+			taskWeek = new TaskWeek(weekRange);
+		} catch (e) {
+			throw parseError(srcPath, "Invalid week: " + weekMD.text);
+		}
 		root.taskWeeks.push(taskWeek);
 		for (const weekElement of weekMD.children) {
 			const m = moment(weekElement.text, DATE_FORMAT, true);
 			if (m.isValid()) {
 				const taskDay = new TaskDay(YMD.fromMoment(m));
 				if (!taskWeek.range.doesInclude(taskDay.date)) {
-					throw new Error("date out of range");
+					throw parseError(srcPath, "date out of range");
 				}
 				taskWeek.taskDays.push(taskDay);
 				taskDay.tasks.push(...weekElement.children);
@@ -296,7 +356,7 @@ console.log("hey")
 
 try {
 
-	const md = parseListHunkToTree(`- 2025/03/03 ~ 2025/03/09
+	const md = parseListHunkToTree("path", `- 2025/03/03 ~ 2025/03/09
   - hello
   - 2025/03/04
     - hey
@@ -304,7 +364,7 @@ try {
   - world
 - 2025/03/10 ~ 2025/03/16
   - hi`.split("\n"));
-	console.log(parseMDRootToTaskRoot(md));
+	console.log(parseMDRootToTaskRoot("path", md));
 } catch (e) {
 	console.error("err", e);
 }
