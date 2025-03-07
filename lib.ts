@@ -363,20 +363,3 @@ class YMD {
 		return this.year === another.year && this.month === another.month && this.day === another.day;
 	}
 }
-
-console.log("hey")
-
-try {
-
-	const md = parseListHunkToTree("path", `- 2025/03/03 ~ 2025/03/09
-  - hello
-  - 2025/03/04
-    - hey
-      - foo
-  - world
-- 2025/03/10 ~ 2025/03/16
-  - hi`.split("\n"));
-	console.log(parseMDRootToTaskRoot("path", md));
-} catch (e) {
-	console.error("err", e);
-}
