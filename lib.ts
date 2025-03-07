@@ -30,7 +30,7 @@ export class DateRange {
 	}
 
 	toString() {
-		return moment(this.from).format(DATE_FORMAT) + DATE_RANGE_DELIMITER + moment(this.to).format(DATE_FORMAT);
+		return this.from.toString() + DATE_RANGE_DELIMITER + this.to.toString();
 	}
 }
 
