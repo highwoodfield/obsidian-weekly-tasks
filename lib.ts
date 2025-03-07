@@ -1,14 +1,14 @@
 import moment from "moment";
 
-export function toEpochDate(date: Date): number {
-	return Math.floor(date.getTime() / (24 * 60 * 60 * 1000));
+export function toEpochDate(date: YMD): number {
+	return Math.floor(date.toDate().getTime() / (24 * 60 * 60 * 1000));
 }
 
 export class DateRange {
-	from: Date;
-	to: Date;
+	from: YMD;
+	to: YMD;
 
-	constructor(from: Date, to: Date) {
+	constructor(from: YMD, to: YMD) {
 		if (toEpochDate(from) > toEpochDate(to)) {
 			throw new Error(`Invalid date range (from: ${from}, to: ${to})`);
 		}
@@ -16,8 +16,8 @@ export class DateRange {
 		this.to = to;
 	}
 
-	doesInclude(tgt: Date | DateRange): boolean {
-		if (tgt instanceof Date) {
+	doesInclude(tgt: YMD | DateRange): boolean {
+		if (tgt instanceof YMD) {
 			return toEpochDate(this.from) <= toEpochDate(tgt) &&
 				toEpochDate(tgt) <= toEpochDate(this.to);
 		} else {
@@ -26,7 +26,7 @@ export class DateRange {
 	}
 
 	equals(another: DateRange): boolean {
-		return this.from.getTime() === another.from.getTime() && this.to.getTime() === another.to.getTime();
+		return this.from.equals(another.from) && this.to.equals(another.to);
 	}
 
 	toString() {
@@ -171,25 +171,25 @@ export class TaskWeek {
 	tasks: MDListNode[] = [];
 
 	constructor(range: DateRange) {
-		if (range.from.getDay() !== WEEK_BEGIN_DAY || range.to.getDay() !== WEEK_END_DAY) {
+		if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY || range.to.toDate().getDay() !== WEEK_END_DAY) {
 			throw new Error("Invalid week range: " + range);
 		}
 		this.range = range;
 	}
 
-	getTaskDay(tgt: Date) {
+	getTaskDay(tgt: YMD) {
 		for (const e of this.taskDays) {
-			if (e.date.getTime() === tgt.getTime()) return e;
+			if (e.date.equals(tgt)) return e;
 		}
 		return undefined;
 	}
 }
 
 export class TaskDay {
-	date: Date;
+	date: YMD;
 	tasks: MDListNode[] = [];
 
-	constructor(date: Date) {
+	constructor(date: YMD) {
 		this.date = date;
 	}
 }
@@ -201,7 +201,7 @@ function parseWeekStr(s: string) {
 			if (!m.isValid()) {
 				throw new Error('Invalid date: ' + value);
 			}
-			return m.toDate();
+			return YMD.fromMoment(m);
 		});
 	if (dates.length !== 2) {
 		throw new Error('Invalid week str: ' + s);
@@ -218,7 +218,7 @@ export function parseMDRootToTaskRoot(mdRoot: MDListRootNode) {
 		for (const weekElement of weekMD.children) {
 			const m = moment(weekElement.text, DATE_FORMAT, true);
 			if (m.isValid()) {
-				const taskDay = new TaskDay(m.toDate());
+				const taskDay = new TaskDay(YMD.fromMoment(m));
 				if (!taskWeek.range.doesInclude(taskDay.date)) {
 					throw new Error("date out of range");
 				}
@@ -263,8 +263,20 @@ class YMD {
 		this.day = day;
 	}
 
+	static fromMoment(m: moment.Moment) {
+		return this.fromDate(m.toDate());
+	}
+
+	static fromDate(m: Date) {
+		return new YMD(m.getFullYear(), m.getMonth(), m.getDate());
+	}
+
+	toDate() {
+		return new Date(this.year, this.month - 1, this.day);
+	}
+
 	toString() {
-		return `${this.year}/${this.month}/${this.day}`;
+		return moment(this.toDate()).format(DATE_FORMAT);
 	}
 
 	compare(another: YMD): number {
@@ -273,6 +285,10 @@ class YMD {
 		const m = this.month - another.month;
 		if (m !== 0) return m;
 		return this.day - another.day;
+	}
+
+	equals(another: YMD): boolean {
+		return this.year === another.year && this.month === another.month && this.day === another.day;
 	}
 }
 
