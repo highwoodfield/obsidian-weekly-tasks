@@ -3,6 +3,9 @@ import {
 	Plugin, TFile, TFolder
 } from 'obsidian';
 
+import * as task_manager from "./lib.js"
+import {toEpochDate} from "./lib.js";
+
 interface WTCSettings {
 	mySetting: string;
 }
@@ -11,36 +14,6 @@ const DEFAULT_SETTINGS: WTCSettings = {
 	mySetting: 'default'
 }
 
-class DateRange {
-	from: TaskDate;
-	to: TaskDate;
-}
-
-interface Node {
-	parent: Node;
-}
-
-interface InnerNode extends Node {
-	parent: Node;
-	children: Node[];
-}
-
-class RangeEntry implements InnerNode {
-	range: DateRange;
-	parent: Node;
-	children: Node[];
-}
-
-class DateEntry implements InnerNode {
-	date: TaskDate;
-	parent: Node;
-	children: Node[];
-}
-
-class TaskEntry implements Node {
-	parent: Node;
-	task: string;
-}
 
 class TaskDate {
 	year: number;
