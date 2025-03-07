@@ -323,8 +323,10 @@ export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
 	}
 }
 
-
-class YMD {
+/**
+ * Local Time Zone.
+ */
+export class YMD {
 	year: number;
 	month: number;
 	day: number;
@@ -340,7 +342,7 @@ class YMD {
 	}
 
 	static fromDate(m: Date) {
-		return new YMD(m.getFullYear(), m.getMonth(), m.getDate());
+		return new YMD(m.getFullYear(), m.getMonth() + 1, m.getDate());
 	}
 
 	toDate() {
