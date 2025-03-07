@@ -44,7 +44,7 @@ class MDListNode {
 	}
 }
 
-class RootNode extends MDListNode {
+class MDListRootNode extends MDListNode {
 	constructor() {
 		super(undefined, "ROOT");
 	}
@@ -117,7 +117,7 @@ export function parseListHunkToTree(rawLines: string[]): MDListNode {
 		});
 	const indentStep = getMinimumIndentStep(lines);
 
-	const root = new RootNode();
+	const root = new MDListRootNode();
 	let lastNode: MDListNode = root;
 	let lastIndentLevel = -1;
 	for (const line of lines) {
@@ -150,18 +150,116 @@ export function parseListHunkToTree(rawLines: string[]): MDListNode {
 	return root;
 }
 
+class TaskRoot {
+	taskWeeks: TaskWeek[] = [];
+
+	getTaskWeek(range: DateRange) {
+		for (const e of this.taskWeeks) {
+			if (e.range.equals(range)) return e;
+		}
+		return undefined;
+	}
+}
+
+class TaskWeek {
+	range: DateRange;
+	taskDays: TaskDay[] = [];
+	tasks: MDListNode[] = [];
+
+	constructor(range: DateRange) {
+		if (range.from.getDay() !== WEEK_BEGIN_DAY || range.to.getDay() !== WEEK_END_DAY) {
+			throw new Error("Invalid week range: " + range);
+		}
+		this.range = range;
+	}
+
+	getTaskDay(tgt: Date) {
+		for (const e of this.taskDays) {
+			if (e.date.getTime() === tgt.getTime()) return e;
+		}
+		return undefined;
+	}
+}
+
+class TaskDay {
+	date: Date;
+	tasks: MDListNode[] = [];
+
+	constructor(date: Date) {
+		this.date = date;
+	}
+}
+
+function parseWeekStr(s: string) {
+	const dates = s.split(DATE_RANGE_DELIMITER)
+		.map(value => {
+			const m = moment(value, DATE_FORMAT, true);
+			if (!m.isValid()) {
+				throw new Error('Invalid date: ' + value);
+			}
+			return m.toDate();
+		});
+	if (dates.length !== 2) {
+		throw new Error('Invalid week str: ' + s);
+	}
+	return new DateRange(dates[0], dates[1]);
+}
+
+function parseMDRootToTaskRoot(mdRoot: MDListRootNode) {
+	const root = new TaskRoot();
+	for (const weekMD of mdRoot.children) {
+		const weekRange = parseWeekStr(weekMD.text);
+		const taskWeek = new TaskWeek(weekRange);
+		root.taskWeeks.push(taskWeek);
+		for (const weekElement of weekMD.children) {
+			const m = moment(weekElement.text, DATE_FORMAT, true);
+			if (m.isValid()) {
+				const taskDay = new TaskDay(m.toDate());
+				if (!taskWeek.range.doesInclude(taskDay.date)) {
+					throw new Error("date out of range");
+				}
+				taskWeek.taskDays.push(taskDay);
+				taskDay.tasks.push(...weekElement.children);
+			} else {
+				taskWeek.tasks.push(weekElement);
+			}
+		}
+	}
+	return root;
+}
+
+function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
+	for (const fromTaskWeek of from.taskWeeks) {
+		const toTaskWeek = to.getTaskWeek(fromTaskWeek.range);
+		if (toTaskWeek === undefined) {
+			to.taskWeeks.push(fromTaskWeek);
+		} else {
+			toTaskWeek.tasks.push(...fromTaskWeek.tasks);
+			for (const fromTaskDay of fromTaskWeek.taskDays) {
+				const toTaskDay = toTaskWeek.getTaskDay(fromTaskDay.date);
+				if (toTaskDay === undefined) {
+					toTaskWeek.taskDays.push(fromTaskDay);
+				} else {
+					toTaskDay.tasks.push(...fromTaskDay.tasks);
+				}
+			}
+		}
+	}
+}
+
 console.log("hey")
 
 try {
 
-	console.log(parseListHunkToTree(`- 2025/03/03 ~ 2025/03/09
+	const md = parseListHunkToTree(`- 2025/03/03 ~ 2025/03/09
   - hello
   - 2025/03/04
     - hey
+      - foo
   - world
 - 2025/03/10 ~ 2025/03/16
-  - hi
-- invalidkamo`.split("\n")))
+  - hi`.split("\n"));
+	console.log(parseMDRootToTaskRoot(md));
 } catch (e) {
 	console.error("err", e);
 }
