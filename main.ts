@@ -1,6 +1,9 @@
 import {
-	Plugin, TFile, TFolder
+	App,
+	Modal, Notice,
+	Plugin, Setting, TFile, TFolder
 } from 'obsidian';
+import moment from 'moment';
 
 import * as lib from "./lib.js"
 import {MDListNode, TaskRoot, toEpochDate} from "./lib.js";
@@ -113,6 +116,10 @@ export default class WTCPlugin extends Plugin {
 				el.textContent = "WTC: an error occurred: " + e;
 			}
 		});
+
+		this.addRibbonIcon("list-todo", "Insert a template for weekly tasks", evt => {
+			new TemplateInsertionModal(this.app).open();
+		});
 	}
 
 	onunload() {
@@ -125,5 +132,60 @@ export default class WTCPlugin extends Plugin {
 
 	async saveSettings() {
 		//await this.saveData(this.settings);
+	}
+}
+
+class TemplateInsertionModal extends Modal {
+	from: string | undefined = undefined;
+	to: string | undefined = undefined;
+
+	constructor(app: App) {
+		super(app);
+	}
+
+	onOpen() {
+		const {contentEl} = this;
+		new Setting(contentEl)
+			.setName("From")
+			.addMomentFormat(component => {
+				component.setDefaultFormat(lib.DATE_FORMAT)
+					.onChange(value => {
+						this.from = value;
+					})
+			})
+		new Setting(contentEl)
+			.setName("To")
+			.addMomentFormat(component => {
+				component.setDefaultFormat(lib.DATE_FORMAT)
+					.onChange(value => {
+						this.to = value;
+					})
+			})
+		new Setting(contentEl)
+			.addButton(component => {
+				component.setButtonText("OK")
+					.onClick(async evt => {
+						this.close();
+						await this.insertText();
+					});
+			})
+	}
+
+	async insertText() {
+		const fromMmt = moment(this.from, lib.DATE_FORMAT);
+		const toMmt = moment(this.to, lib.DATE_FORMAT);
+		if (!fromMmt.isValid() || !toMmt.isValid()) {
+			new Notice("Invalid format");
+			return;
+		}
+		const text = lib.generateTaskListTemplate(fromMmt.toDate(), toMmt.toDate());
+		const activeFile = this.app.workspace.getActiveFile();
+		if (activeFile === null) return;
+		await this.app.vault.append(activeFile, text);
+	}
+
+	onClose() {
+		const {contentEl} = this;
+		contentEl.empty();
 	}
 }

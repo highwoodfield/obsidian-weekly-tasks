@@ -61,8 +61,8 @@ export function isTabIndent(lines: string[]) {
 }
 
 
-const DATE_RANGE_DELIMITER = " ~ ";
-const DATE_FORMAT = "YYYY/MM/DD"
+export const DATE_RANGE_DELIMITER = " ~ ";
+export const DATE_FORMAT = "YYYY/MM/DD"
 const REGEX_MD_LIST_SPACE = /^(\s*)-\s+(.+)/;
 const REGEX_MD_LIST_TAB = /^(\t*)-\s+(.+)/;
 
@@ -362,4 +362,25 @@ class YMD {
 	equals(another: YMD): boolean {
 		return this.year === another.year && this.month === another.month && this.day === another.day;
 	}
+}
+
+function nextDay(date: Date, day: number): Date {
+	const copyDate = new Date(date);
+	while (copyDate.getDay() !== day) {
+		copyDate.setDate(copyDate.getDate() + 1);
+	}
+	return copyDate;
+}
+
+export function generateTaskListTemplate(from: Date, to: Date) {
+	let cursor = new Date(from);
+	let output: string = "";
+	while (cursor.getTime() < to.getTime()) {
+		const begin = nextDay(cursor, WEEK_BEGIN_DAY);
+		const end = nextDay(begin, WEEK_END_DAY);
+		cursor = new Date(end);
+		output = output.concat("- " + moment(begin).format(DATE_FORMAT) +
+			DATE_RANGE_DELIMITER + moment(end).format(DATE_FORMAT) + "\n");
+	}
+	return output;
 }
