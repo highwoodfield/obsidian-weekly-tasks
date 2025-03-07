@@ -197,7 +197,10 @@ export default class WTCPlugin extends Plugin {
 
 		this.registerMarkdownCodeBlockProcessor("weekly-task-collect", async (src, el) => {
 			try {
+				const before = getEpochTimeMillis();
 				await this.showTasks(src, el);
+				const after = getEpochTimeMillis();
+				console.debug("showTasks() took " + (after - before) + " ms");
 			} catch (e) {
 				console.error(e);
 				el.textContent = "WTC: an error occurred";
