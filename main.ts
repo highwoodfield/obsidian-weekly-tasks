@@ -20,12 +20,29 @@ function getEpochTimeMillis(): number {
 	return new Date().getTime();
 }
 
-function createTaskListHTML(html: HTMLElement, tasks: MDListNode) {
-	const rootLI = html.createEl("li");
-	rootLI.textContent = tasks.text + ` (${tasks.srcPath})`;
-	const tasksUL = rootLI.createEl("ul");
-	for (const task of tasks.children) {
-		createTaskListHTML(tasksUL, task);
+function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boolean) {if (!header) {
+		for (const taskNode of tasks) {
+			const taskLI = html.createEl("li");
+			taskLI.textContent = taskNode.text;
+			if (taskNode.children.length !== 0) {
+				createTaskListHTML(taskLI.createEl("ul"), taskNode.children);
+			}
+		}
+	} else {
+		const nodePerPath = new Map<string, MDListNode[]> ();
+		for (const task of tasks) {
+			const got = nodePerPath.get(task.srcPath)
+			if (got) {
+				got.push(task);
+			} else {
+				nodePerPath.set(task.srcPath, [ task ]);
+			}
+		}
+		for (const path of nodePerPath.keys()) {
+			const pathLI = html.createEl("li");
+			pathLI.textContent = path;
+			createTaskListHTML(pathLI.createEl("ul"), nodePerPath.get(path)!);
+		}
 	}
 }
 
@@ -52,13 +69,13 @@ export default class WTCPlugin extends Plugin {
 			const weekLI = rootUL.createEl("li");
 			weekLI.textContent = taskWeek.range.toString();
 			const weeklyTaskUL = weekLI.createEl("ul");
-			taskWeek.tasks.forEach(value => createTaskListHTML(weeklyTaskUL, value));
+			createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
 
 			for (const taskDay of taskWeek.taskDays.sort((a, b) => a.date.compare(b.date))) {
 				const dayLI = weeklyTaskUL.createEl("li");
 				dayLI.textContent = taskDay.date.toString();
 				const dayUL = dayLI.createEl("ul");
-				taskDay.tasks.forEach(value => createTaskListHTML(dayUL, value));
+				createTaskListHTML(dayUL, taskDay.tasks, true);
 			}
 		}
 	}
