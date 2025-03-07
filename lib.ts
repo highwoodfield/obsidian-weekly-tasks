@@ -28,12 +28,16 @@ export class DateRange {
 	equals(another: DateRange): boolean {
 		return this.from.getTime() === another.from.getTime() && this.to.getTime() === another.to.getTime();
 	}
+
+	toString() {
+		return moment(this.from).format(DATE_FORMAT) + DATE_RANGE_DELIMITER + moment(this.to).format(DATE_FORMAT);
+	}
 }
 
 const WEEK_BEGIN_DAY = 1; // 1 for monday
 const WEEK_END_DAY = 0; // 0 for monday
 
-class MDListNode {
+export class MDListNode {
 	parent: MDListNode | undefined;
 	text: string;
 	children: MDListNode[] = [];
@@ -44,7 +48,7 @@ class MDListNode {
 	}
 }
 
-class MDListRootNode extends MDListNode {
+export class MDListRootNode extends MDListNode {
 	constructor() {
 		super(undefined, "ROOT");
 	}
@@ -150,7 +154,7 @@ export function parseListHunkToTree(rawLines: string[]): MDListNode {
 	return root;
 }
 
-class TaskRoot {
+export class TaskRoot {
 	taskWeeks: TaskWeek[] = [];
 
 	getTaskWeek(range: DateRange) {
@@ -161,7 +165,7 @@ class TaskRoot {
 	}
 }
 
-class TaskWeek {
+export class TaskWeek {
 	range: DateRange;
 	taskDays: TaskDay[] = [];
 	tasks: MDListNode[] = [];
@@ -181,7 +185,7 @@ class TaskWeek {
 	}
 }
 
-class TaskDay {
+export class TaskDay {
 	date: Date;
 	tasks: MDListNode[] = [];
 
@@ -205,7 +209,7 @@ function parseWeekStr(s: string) {
 	return new DateRange(dates[0], dates[1]);
 }
 
-function parseMDRootToTaskRoot(mdRoot: MDListRootNode) {
+export function parseMDRootToTaskRoot(mdRoot: MDListRootNode) {
 	const root = new TaskRoot();
 	for (const weekMD of mdRoot.children) {
 		const weekRange = parseWeekStr(weekMD.text);
@@ -228,7 +232,7 @@ function parseMDRootToTaskRoot(mdRoot: MDListRootNode) {
 	return root;
 }
 
-function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
+export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
 	for (const fromTaskWeek of from.taskWeeks) {
 		const toTaskWeek = to.getTaskWeek(fromTaskWeek.range);
 		if (toTaskWeek === undefined) {
@@ -244,6 +248,31 @@ function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
 				}
 			}
 		}
+	}
+}
+
+
+class YMD {
+	year: number;
+	month: number;
+	day: number;
+
+	constructor(year: number, month: number, day: number) {
+		this.year = year;
+		this.month = month;
+		this.day = day;
+	}
+
+	toString() {
+		return `${this.year}/${this.month}/${this.day}`;
+	}
+
+	compare(another: YMD): number {
+		const y = this.year - another.year;
+		if (y !== 0) return y;
+		const m = this.month - another.month;
+		if (m !== 0) return m;
+		return this.day - another.day;
 	}
 }
 
