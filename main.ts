@@ -98,6 +98,16 @@ function parseMarkdownToTasks(src: string, markdown: string): Task[] {
     return tasks;
 }
 
+function createTaskListHTML(html: HTMLElement, title: string, tasks: Task[]) {
+	const rootLI = html.createEl("li");
+	rootLI.textContent = title;
+	const tasksUL = rootLI.createEl("ul");
+	for (const task of tasks) {
+		const taskLI = tasksUL.createEl("li");
+		taskLI.textContent = `${task.desc} (${task.src})`;
+	}
+}
+
 // noinspection JSUnusedGlobalSymbols
 export default class WTCPlugin extends Plugin {
 	settings: WTCSettings;
@@ -137,21 +147,9 @@ export default class WTCPlugin extends Plugin {
 		for (const date of datedTasksMap.keys()) {
 			const datedTasks = datedTasksMap.get(date);
 			if (!datedTasks) { throw "Unreachable" }
-			const datedLI = rootUL.createEl("li");
-			datedLI.textContent = date.toString();
-			const childUL = datedLI.createEl("ul");
-			for (const task of datedTasks) {
-				const taskLI = childUL.createEl("li");
-				taskLI.textContent = `${task.desc} (${task.src})`;
-			}
+			createTaskListHTML(rootUL, date.toString(), datedTasks);
 		}
-		const unknownLI = rootUL.createEl("li");
-		unknownLI.textContent = "Unknown";
-		const unknownUL = unknownLI.createEl("ul");
-		for (const task of unknownDateTasks) {
-			const taskLI = unknownUL.createEl("li");
-			taskLI.textContent = `${task.desc} (${task.src})`;
-		}
+		createTaskListHTML(rootUL, "Unknown", unknownDateTasks);
 	}
 
 	async collectTasksIfNeeded(rootPath: string) {
