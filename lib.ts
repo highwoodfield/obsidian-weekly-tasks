@@ -33,57 +33,20 @@ export class DateRange {
 const WEEK_BEGIN_DAY = 1; // 1 for monday
 const WEEK_END_DAY = 0; // 0 for monday
 
-class Node {
-	parent: Node | undefined;
-	children: Node[] = [];
-	invalid: string | null = null;
+class MDListNode {
+	parent: MDListNode | undefined;
+	text: string;
+	children: MDListNode[] = [];
 
-	constructor(parent: Node | undefined) {
+	constructor(parent: MDListNode | undefined, text: string) {
 		this.parent = parent;
-	}
-
-	setParent(parent: Node) {
-		this.parent = parent;
-		parent.children.push(this);
+		this.text = text;
 	}
 }
 
-class RootNode extends Node {
-	invalidNodes: Node[] = [];
-
+class RootNode extends MDListNode {
 	constructor() {
-		super(undefined);
-	}
-}
-
-class WeekNode extends Node {
-	range: DateRange;
-
-	constructor(parent: Node | undefined, range: DateRange) {
-		super(parent);
-		this.range = range;
-	}
-
-	isValidRange() {
-		return this.range.from.getDay() === WEEK_BEGIN_DAY && this.range.to.getDay() === WEEK_END_DAY
-	}
-}
-
-class DateNode extends Node {
-	date: Date;
-
-	constructor(parent: Node | undefined, date: Date) {
-		super(parent);
-		this.date = date;
-	}
-}
-
-class TaskNode extends Node {
-	task: string;
-
-	constructor(parent: Node | undefined, task: string) {
-		super(parent);
-		this.task = task;
+		super(undefined, "ROOT");
 	}
 }
 
@@ -120,7 +83,7 @@ class MDListLine {
 	}
 
 	getIndentLevel(step: number) {
-		if (this.getIndentCharLen() % step !== 0) throw "Invalid step";
+		if (this.getIndentCharLen() % step !== 0) throw new Error("Invalid step");
 		return this.getIndentCharLen() / step;
 	}
 
@@ -129,28 +92,7 @@ class MDListLine {
 	}
 
 	toNode() {
-		if (this.getContent().indexOf(DATE_RANGE_DELIMITER) !== -1) {
-			return this.toRangeNode();
-		} else if (moment(this.getContent(), DATE_FORMAT, true).isValid()) {
-			return this.toDateNode();
-		} else {
-			return this.toTaskNode();
-		}
-	}
-
-	private toTaskNode() {
-		return new TaskNode(undefined, this.getContent());
-	}
-
-	private toRangeNode() {
-		const dates = this.getContent().split(DATE_RANGE_DELIMITER)
-			.map(date => { return moment(date, DATE_FORMAT, true) });
-		return new WeekNode(undefined, new DateRange(dates[0].toDate(), dates[1].toDate()));
-	}
-
-	private toDateNode() {
-		const date = moment(this.getContent(), DATE_FORMAT, true);
-		return new DateNode(undefined, date.toDate());
+		return new MDListNode(undefined, this.getContent());
 	}
 }
 
@@ -163,7 +105,7 @@ export function getMinimumIndentStep(lines: MDListLine[]) {
 	return min === -1 ? 2 : min;
 }
 
-export function parseListHunkToTasks(rawLines: string[]): Node {
+export function parseListHunkToTree(rawLines: string[]): MDListNode {
 	const isTab = isTabIndent(rawLines);
 	const lines = rawLines
 		.map((line) => {
@@ -176,7 +118,7 @@ export function parseListHunkToTasks(rawLines: string[]): Node {
 	const indentStep = getMinimumIndentStep(lines);
 
 	const root = new RootNode();
-	let lastNode: Node = root;
+	let lastNode: MDListNode = root;
 	let lastIndentLevel = -1;
 	for (const line of lines) {
 		const node = line.toNode();
@@ -205,101 +147,14 @@ export function parseListHunkToTasks(rawLines: string[]): Node {
 		lastIndentLevel = indentLevel;
 		lastNode = node;
 	}
-	validateTree(root, root);
 	return root;
-}
-
-export function mergeRootNodes(from: RootNode, to: RootNode) {
-	const fromWeeks = from.children as WeekNode[];
-	for (const fromWeek of fromWeeks) {
-		let toWeek: WeekNode | undefined = undefined;
-		for (const toNode of to.children) {
-			if (toNode instanceof WeekNode && toNode.range.equals(fromWeek.range)) {
-				toWeek = toNode;
-			}
-		}
-		if (!toWeek) {
-			to.children.push(fromWeek);
-		} else {
-			for (const fromNode of fromWeek.children) {
-				if (!(fromNode instanceof DateNode)) {
-					toWeek.children.push(fromNode);
-				} else {
-					let toDate: DateNode | undefined = undefined;
-					for (const toNode of toWeek.children) {
-						if (toNode instanceof DateNode && toNode.date.getTime() === fromNode.date.getTime()) {
-							toDate = toNode;
-						}
-					}
-					if (!toDate) {
-
-					}
-				}
-			}
-		}
-	}
-}
-
-function validateTree(root: RootNode, node: Node) {
-	if (node instanceof WeekNode) {
-		if (!(node.parent instanceof RootNode)) {
-			node.invalid = "WeekNode should only be under RootNode";
-		} else if (!node.isValidRange()) {
-			node.invalid = "The range of WeekNode is invalid"
-		} else {
-			let sameCnt = 0;
-			for (const child of node.parent.children) {
-				if (child instanceof WeekNode && child.range.equals(node.range)) {
-					sameCnt++;
-				}
-			}
-			if (sameCnt > 1) {
-				node.invalid = "Duplicate range";
-			}
-		}
-	} else if (node instanceof DateNode) {
-		if (!(node.parent instanceof WeekNode)) {
-			node.invalid = "DateNode should only be under WeekNode";
-		} else if (!node.parent.range.doesInclude(node.date)) {
-			node.invalid = "DateNode should be included in the upper WeekNode"
-		} else {
-			let sameCnt = 0;
-			for (const child of node.parent.children) {
-				if (child instanceof DateNode && child.date.getTime() === node.date.getTime()) {
-					sameCnt++;
-				}
-			}
-			if (sameCnt > 1) {
-				node.invalid = "Duplicate date";
-			}
-		}
-	} else if (node instanceof TaskNode) {
-		if (node.parent instanceof RootNode) {
-			node.invalid = "TaskNode should not be under RootNode";
-		}
-	} else if (node instanceof RootNode) {
-		// no-op
-	} else {
-		throw new Error("Unreachable");
-	}
-	if (node.invalid) {
-		node.parent?.children.splice(node.parent?.children.indexOf(node), 1);
-		node.parent = root;
-		root.invalidNodes.push(node);
-		return;
-	}
-
-	// if node is ok then check its children
-	for (const child of node.children) {
-		validateTree(root, child);
-	}
 }
 
 console.log("hey")
 
 try {
 
-	console.log(parseListHunkToTasks(`- 2025/03/03 ~ 2025/03/09
+	console.log(parseListHunkToTree(`- 2025/03/03 ~ 2025/03/09
   - hello
   - 2025/03/04
     - hey
