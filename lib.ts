@@ -134,7 +134,7 @@ export function parseContentToTasks(srcPath: string, content: string) {
 		if (typeof childRoot !== "number") {
 			mergeTaskRoots(childRoot, taskRoot);
 		} else if (childRoot > 0) {
-			console.error(srcPath + ": Malformed entries: ", childRoot);
+			//console.error(srcPath + ": Malformed entries: ", childRoot);
 		}
 	}
 	return taskRoot;
