@@ -149,7 +149,9 @@ export default class WTCPlugin extends Plugin {
 			if (!datedTasks) { throw "Unreachable" }
 			createTaskListHTML(rootUL, date.toString(), datedTasks);
 		}
-		createTaskListHTML(rootUL, "Unknown", unknownDateTasks);
+		if (unknownDateTasks.length > 0) {
+			createTaskListHTML(rootUL, "Unknown", unknownDateTasks);
+		}
 	}
 
 	async collectTasksIfNeeded(rootPath: string) {
