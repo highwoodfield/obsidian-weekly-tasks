@@ -1,4 +1,5 @@
 import {
+	moment,
 	Plugin, TFile, TFolder
 } from 'obsidian';
 
@@ -8,6 +9,37 @@ interface WTCSettings {
 
 const DEFAULT_SETTINGS: WTCSettings = {
 	mySetting: 'default'
+}
+
+class DateRange {
+	from: TaskDate;
+	to: TaskDate;
+}
+
+interface Node {
+	parent: Node;
+}
+
+interface InnerNode extends Node {
+	parent: Node;
+	children: Node[];
+}
+
+class RangeEntry implements InnerNode {
+	range: DateRange;
+	parent: Node;
+	children: Node[];
+}
+
+class DateEntry implements InnerNode {
+	date: TaskDate;
+	parent: Node;
+	children: Node[];
+}
+
+class TaskEntry implements Node {
+	parent: Node;
+	task: string;
 }
 
 class TaskDate {
