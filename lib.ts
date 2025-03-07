@@ -250,7 +250,7 @@ export class TaskDay {
 function parseWeekStr(s: string): DateRange | string {
 	const dates: YMD[] = [];
 	for (const rawDate of s.split(DATE_RANGE_DELIMITER)) {
-		const m = moment(rawDate, DATE_FORMAT, true);
+		const m = moment(rawDate, DATE_FORMAT);
 		if (!m.isValid()) {
 			return "Invalid date format";
 		}
@@ -285,7 +285,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
 		}
 		root.taskWeeks.push(taskWeek);
 		for (const weekElement of weekMD.children) {
-			const m = moment(weekElement.text, DATE_FORMAT, true);
+			const m = moment(weekElement.text, DATE_FORMAT);
 			if (m.isValid()) {
 				const taskDay = new TaskDay(YMD.fromMoment(m));
 				if (!taskWeek.range.doesInclude(taskDay.date)) {
