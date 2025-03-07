@@ -6,7 +6,7 @@ import {
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, TaskRoot, toEpochDate} from "./lib.js";
+import {MDListNode, TaskRoot} from "./lib.js";
 
 interface WTCSettings {
 	mySetting: string;
@@ -117,7 +117,7 @@ export default class WTCPlugin extends Plugin {
 			}
 		});
 
-		this.addRibbonIcon("list-todo", "Insert a template for weekly tasks", evt => {
+		this.addRibbonIcon("list-todo", "Insert a template for weekly tasks", () => {
 			new TemplateInsertionModal(this.app).open();
 		});
 	}
@@ -164,7 +164,7 @@ class TemplateInsertionModal extends Modal {
 		new Setting(contentEl)
 			.addButton(component => {
 				component.setButtonText("OK")
-					.onClick(async evt => {
+					.onClick(async () => {
 						this.close();
 						await this.insertText();
 					});

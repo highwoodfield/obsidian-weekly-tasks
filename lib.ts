@@ -140,7 +140,7 @@ export function parseContentToTasks(srcPath: string, content: string) {
 	return taskRoot;
 }
 
-export function parseContentToListHunks(srcPath: string, content: string): Hunk[] {
+export function parseContentToListHunks(_srcPath: string, content: string): Hunk[] {
 	const buffer: string[] = []
 	const hunks: Hunk[] = [];
 	for (const line of content.split("\n")) {
@@ -266,7 +266,7 @@ function parseWeekStr(s: string): DateRange | string {
 	}
 }
 
-export function parseMDRootToTaskRoot(srcPath: string, mdRoot: MDListRootNode): TaskRoot | number {
+export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): TaskRoot | number {
 	const root = new TaskRoot();
 	for (const weekMD of mdRoot.children) {
 		const weekRange = parseWeekStr(weekMD.text);
