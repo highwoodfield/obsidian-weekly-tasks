@@ -69,7 +69,6 @@ export default class WTCPlugin extends Plugin {
 			const weekLI = rootUL.createEl("li");
 			weekLI.textContent = taskWeek.range.toString();
 			const weeklyTaskUL = weekLI.createEl("ul");
-			createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
 
 			for (const taskDay of taskWeek.taskDays.sort((a, b) => a.date.compare(b.date))) {
 				const dayLI = weeklyTaskUL.createEl("li");
@@ -77,6 +76,8 @@ export default class WTCPlugin extends Plugin {
 				const dayUL = dayLI.createEl("ul");
 				createTaskListHTML(dayUL, taskDay.tasks, true);
 			}
+
+			createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
 		}
 	}
 
