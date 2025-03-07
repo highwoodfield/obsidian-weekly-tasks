@@ -131,7 +131,11 @@ export function parseContentToTasks(srcPath: string, content: string) {
 	for (const hunk of hunks) {
 		const md = parseListHunkToTree(srcPath, hunk.lines);
 		const childRoot = parseMDRootToTaskRoot(srcPath, md);
-		mergeTaskRoots(childRoot, taskRoot);
+		if (typeof childRoot !== "number") {
+			mergeTaskRoots(childRoot, taskRoot);
+		} else if (childRoot > 0) {
+			console.error(srcPath + ": Malformed entries: ", childRoot);
+		}
 	}
 	return taskRoot;
 }
@@ -204,6 +208,7 @@ export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDList
 
 export class TaskRoot {
 	taskWeeks: TaskWeek[] = [];
+	malformedMDs: MDListNode[] = [];
 
 	getTaskWeek(range: DateRange) {
 		for (const e of this.taskWeeks) {
@@ -261,18 +266,22 @@ function parseWeekStr(s: string): DateRange | string {
 	}
 }
 
-export function parseMDRootToTaskRoot(srcPath: string, mdRoot: MDListRootNode) {
+export function parseMDRootToTaskRoot(srcPath: string, mdRoot: MDListRootNode): TaskRoot | number {
 	const root = new TaskRoot();
 	for (const weekMD of mdRoot.children) {
 		const weekRange = parseWeekStr(weekMD.text);
 		if (typeof weekRange === "string") {
-			throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")");
+			// throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
+			root.malformedMDs.push(weekMD);
+			continue;
 		}
 		let taskWeek: TaskWeek;
 		try {
 			taskWeek = new TaskWeek(weekRange);
 		} catch (e) {
-			throw parseError(srcPath, "Invalid week: " + weekMD.text);
+			// skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
+			root.malformedMDs.push(weekMD);
+			continue;
 		}
 		root.taskWeeks.push(taskWeek);
 		for (const weekElement of weekMD.children) {
@@ -280,7 +289,9 @@ export function parseMDRootToTaskRoot(srcPath: string, mdRoot: MDListRootNode) {
 			if (m.isValid()) {
 				const taskDay = new TaskDay(YMD.fromMoment(m));
 				if (!taskWeek.range.doesInclude(taskDay.date)) {
-					throw parseError(srcPath, "date out of range");
+					//throw parseError(srcPath, "date out of range");
+					root.malformedMDs.push(weekElement);
+					continue;
 				}
 				taskWeek.taskDays.push(taskDay);
 				taskDay.tasks.push(...weekElement.children);
@@ -289,10 +300,11 @@ export function parseMDRootToTaskRoot(srcPath: string, mdRoot: MDListRootNode) {
 			}
 		}
 	}
-	return root;
+	return root.taskWeeks.length !== 0 ? root : root.malformedMDs.length;
 }
 
 export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
+	to.malformedMDs.push(...from.malformedMDs)
 	for (const fromTaskWeek of from.taskWeeks) {
 		const toTaskWeek = to.getTaskWeek(fromTaskWeek.range);
 		if (toTaskWeek === undefined) {

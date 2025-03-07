@@ -110,7 +110,7 @@ export default class WTCPlugin extends Plugin {
 				console.debug("showTasks() took " + (after - before) + " ms");
 			} catch (e) {
 				console.error(e);
-				el.textContent = "WTC: an error occurred";
+				el.textContent = "WTC: an error occurred: " + e;
 			}
 		});
 	}
