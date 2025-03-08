@@ -79,6 +79,15 @@ export default class WTCPlugin extends Plugin {
 
 			createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
 		}
+		if (tasks.malformedMDs.length >= 0) {
+			const malformedLI = rootUL.createEl("li");
+			malformedLI.textContent = "Malformed contents";
+			const malformedUL = malformedLI.createEl("ul");
+			tasks.malformedMDs.forEach(malformedMD => {
+				const li = malformedUL.createEl("li");
+				li.textContent = malformedMD.toString();
+			});
+		}
 	}
 
 	async collectTasksIfNeeded(rootPath: string) {
