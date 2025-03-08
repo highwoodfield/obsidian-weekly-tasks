@@ -139,16 +139,23 @@ class Hunk {
 	}
 }
 
+/**
+ * Returns undefined when there is no tasks in the content.
+ *
+ * @param srcPath
+ * @param content
+ */
 export function parseContentToTasks(srcPath: string, content: string) {
 	const hunks = parseContentToListHunks(srcPath, content);
 	const taskRoot = new TaskRoot();
 	for (const hunk of hunks) {
 		const md = parseListHunkToTree(srcPath, hunk.lines);
 		const childRoot = parseMDRootToTaskRoot(srcPath, md);
-		if (typeof childRoot !== "number") {
+		// Ignore malformed contents if there are no tasks in the hunk.
+		// Malformed contents I want is ones in the hunk with some tasks
+		// because the malformed contents may be "tasks" in that case.
+		if (childRoot.taskWeeks.length > 0) {
 			mergeTaskRoots(childRoot, taskRoot);
-		} else if (childRoot > 0) {
-			//console.error(srcPath + ": Malformed entries: ", childRoot);
 		}
 	}
 	return taskRoot.taskWeeks.length > 0 ? taskRoot : undefined;
@@ -280,7 +287,7 @@ function parseWeekStr(s: string): DateRange | string {
 	}
 }
 
-export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): TaskRoot | number {
+export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): TaskRoot {
 	const root = new TaskRoot();
 	for (const weekMD of mdRoot.children) {
 		const weekRange = parseWeekStr(weekMD.text);
@@ -313,7 +320,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
 			}
 		}
 	}
-	return root.taskWeeks.length !== 0 ? root : root.malformedMDs.length;
+	return root;
 }
 
 export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
