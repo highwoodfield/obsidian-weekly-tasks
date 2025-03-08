@@ -4,6 +4,7 @@
     "outDir": "out",
     "inlineSourceMap": true,
     "inlineSources": true,
+    "incremental": true,
     "module": "ESNext",
     "target": "ES6",
     "allowJs": true,
