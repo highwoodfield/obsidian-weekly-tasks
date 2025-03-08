@@ -37,6 +37,20 @@ export class DateRange {
 const WEEK_BEGIN_DAY = 1; // 1 for monday
 const WEEK_END_DAY = 0; // 0 for monday
 
+export class MalformedMD {
+	reason: string;
+	node: MDListNode;
+
+	constructor(reason: string, node: MDListNode) {
+		this.reason = reason;
+		this.node = node;
+	}
+
+	toString() {
+		return `${this.node.srcPath}: Malformed because: ${this.reason}`;
+	}
+}
+
 export class MDListNode {
 	parent: MDListNode | undefined;
 	srcPath: string;
@@ -137,7 +151,7 @@ export function parseContentToTasks(srcPath: string, content: string) {
 			//console.error(srcPath + ": Malformed entries: ", childRoot);
 		}
 	}
-	return taskRoot;
+	return taskRoot.taskWeeks.length > 0 ? taskRoot : undefined;
 }
 
 export function parseContentToListHunks(_srcPath: string, content: string): Hunk[] {
@@ -208,7 +222,7 @@ export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDList
 
 export class TaskRoot {
 	taskWeeks: TaskWeek[] = [];
-	malformedMDs: MDListNode[] = [];
+	malformedMDs: MalformedMD[] = [];
 
 	getTaskWeek(range: DateRange) {
 		for (const e of this.taskWeeks) {
@@ -272,7 +286,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
 		const weekRange = parseWeekStr(weekMD.text);
 		if (typeof weekRange === "string") {
 			// throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
-			root.malformedMDs.push(weekMD);
+			root.malformedMDs.push(new MalformedMD("Invalid range format", weekMD));
 			continue;
 		}
 		let taskWeek: TaskWeek;
@@ -280,7 +294,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
 			taskWeek = new TaskWeek(weekRange);
 		} catch (e) {
 			// skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
-			root.malformedMDs.push(weekMD);
+			root.malformedMDs.push(new MalformedMD("Invalid week range", weekMD));
 			continue;
 		}
 		root.taskWeeks.push(taskWeek);
@@ -289,8 +303,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
 			if (m.isValid()) {
 				const taskDay = new TaskDay(YMD.fromMoment(m));
 				if (!taskWeek.range.doesInclude(taskDay.date)) {
-					//throw parseError(srcPath, "date out of range");
-					root.malformedMDs.push(weekElement);
+					root.malformedMDs.push(new MalformedMD("date out of range", weekElement));
 					continue;
 				}
 				taskWeek.taskDays.push(taskDay);

@@ -109,7 +109,12 @@ export default class WTCPlugin extends Plugin {
 				} else if (child instanceof TFile) {
 					const content = await this.app.vault.cachedRead(child);
 					const taskRootChild = lib.parseContentToTasks(child.path, content);
-					lib.mergeTaskRoots(taskRootChild, taskRoot);
+					if (taskRootChild) {
+						for (let malformedMD of taskRootChild.malformedMDs) {
+							console.log(malformedMD);
+						}
+						lib.mergeTaskRoots(taskRootChild, taskRoot);
+					}
 				} else {
 					throw "Unreachable";
 				}
