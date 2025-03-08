@@ -79,7 +79,7 @@ export default class WTCPlugin extends Plugin {
 
 			createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
 		}
-		if (tasks.malformedMDs.length >= 0) {
+		if (tasks.malformedMDs.length > 0) {
 			const malformedLI = rootUL.createEl("li");
 			malformedLI.textContent = "Malformed contents";
 			const malformedUL = malformedLI.createEl("ul");
