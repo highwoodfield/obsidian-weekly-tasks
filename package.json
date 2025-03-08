@@ -2,6 +2,7 @@
 	"name": "obsidian-weekly-task-collector",
 	"version": "0.1.0",
 	"description": "Collects tasks and shows them.",
+	"type": "module",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
