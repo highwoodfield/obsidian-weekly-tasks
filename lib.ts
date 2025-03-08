@@ -299,7 +299,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
 		}
 		root.taskWeeks.push(taskWeek);
 		for (const weekElement of weekMD.children) {
-			const m = moment(weekElement.text, DATE_FORMAT);
+			const m = moment(weekElement.text, DATE_FORMAT, true);
 			if (m.isValid()) {
 				const taskDay = new TaskDay(YMD.fromMoment(m));
 				if (!taskWeek.range.doesInclude(taskDay.date)) {
