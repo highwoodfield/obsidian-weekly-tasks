@@ -29,6 +29,8 @@ Obsidian Weekly Tasks は、 [Obsidian](https://obsidian.md) のためのプラ�
 このとき、 Vault内の任意の場所に配置したノート `ccc.md` に以下のようなコードブロックを書き込みます。
 
 ````ccc.md
+# ccc.md
+
 ```weekly-task-collect
 xxx
 ```
@@ -37,6 +39,8 @@ xxx
 すると、このプラグインは、コードブロックの中に記述されたフォルダ内を探索し、このブロックを以下のように置き換えて表示します。
 
 ```ccc.md
+# ccc.md
+
 - 2025/03/03 ~ 2025/03/09
   - foo
 - 2025/03/10 ~ 2025/03/16
@@ -53,11 +57,11 @@ xxx
 ## Installation
 
 ```
-git clone https://url-to-this-repository.example.com
-cd path/to/this/repository
+git clone https://github.com/highwoodfield/obsidian-weekly-tasks.git
+cd obsidian-weekly-tasks
 npm i
 npm run build
-mkdir path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks
+mkdir path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks/
 cp main.js path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks/
 cp manifest.json path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks/
 ```
