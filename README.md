@@ -50,3 +50,15 @@ xxx
 
 これで、すべての計画を一つのノートで確認できるようになりました。
 
+## Installation
+
+```
+git clone https://url-to-this-repository.example.com
+cd path/to/this/repository
+npm i
+npm run build
+mkdir path/to/your/vault/.obsidian/plugin/obsidian-weekly-task-collector
+cp main.js path/to/your/vault/.obsidian/plugin/obsidian-weekly-task-collector/
+cp manifest.json path/to/your/vault/.obsidian/plugin/obsidian-weekly-task-collector/
+```
+
