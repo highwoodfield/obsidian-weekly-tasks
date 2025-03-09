@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-weekly-task-collector",
+	"name": "obsidian-weekly-tasks",
 	"version": "0.1.0",
 	"description": "Collects tasks and shows them.",
 	"type": "module",

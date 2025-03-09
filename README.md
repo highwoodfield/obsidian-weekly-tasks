@@ -1,6 +1,6 @@
-# Obsidian Weekly Task Collector
+# Obsidian Weekly Tasks 
 
-Obsidian Weekly Task Collector は、 [Obsidian](https://obsidian.md) のためのプラグインです。
+Obsidian Weekly Tasks は、 [Obsidian](https://obsidian.md) のためのプラグインです。
 
 このプラグインを導入することで、複数のノートに渡って記述された週ごとの予定や計画を一つのノートで確認することができます。
 
@@ -57,8 +57,8 @@ git clone https://url-to-this-repository.example.com
 cd path/to/this/repository
 npm i
 npm run build
-mkdir path/to/your/vault/.obsidian/plugin/obsidian-weekly-task-collector
-cp main.js path/to/your/vault/.obsidian/plugin/obsidian-weekly-task-collector/
-cp manifest.json path/to/your/vault/.obsidian/plugin/obsidian-weekly-task-collector/
+mkdir path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks
+cp main.js path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks/
+cp manifest.json path/to/your/vault/.obsidian/plugin/obsidian-weekly-tasks/
 ```
 
