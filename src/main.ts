@@ -20,7 +20,14 @@ function getEpochTimeMillis(): number {
   return new Date().getTime();
 }
 
-function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boolean) {
+/**
+ * Returns the number of skipped tasks.
+ *
+ * @param html
+ * @param tasks
+ * @param header
+ */
+function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boolean): number {
   if (!header) {
     for (const taskNode of tasks) {
       const taskLI = html.createEl("li");
@@ -29,9 +36,16 @@ function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boo
         createTaskListHTML(taskLI.createEl("ul"), taskNode.children);
       }
     }
+    return 0;
   } else {
+    let skippedTasks = 0;
+    // Make a group of nodes per source path
     const nodePerPath = new Map<string, MDListNode[]>();
     for (const task of tasks) {
+      if (task.isAllChecked()){
+        skippedTasks++;
+        continue;
+      }
       const got = nodePerPath.get(task.srcPath)
       if (got) {
         got.push(task);
@@ -44,6 +58,7 @@ function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boo
       pathLI.textContent = path;
       createTaskListHTML(pathLI.createEl("ul"), nodePerPath.get(path)!);
     }
+    return skippedTasks;
   }
 }
 
@@ -75,10 +90,12 @@ export default class WTCPlugin extends Plugin {
         const dayLI = weeklyTaskUL.createEl("li");
         dayLI.textContent = taskDay.date.toString();
         const dayUL = dayLI.createEl("ul");
-        createTaskListHTML(dayUL, taskDay.tasks, true);
+        const skipped = createTaskListHTML(dayUL, taskDay.tasks, true);
+        if (skipped !== 0) dayUL.createEl("li").textContent = `${skipped} checked tasks`
       }
 
-      createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
+      const skipped = createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
+      if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
     }
     if (tasks.malformedMDs.length > 0) {
       const malformedLI = rootUL.createEl("li");

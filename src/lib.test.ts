@@ -77,3 +77,9 @@ test("isTabIndent", () => {
   assert.strictEqual(lib.isTabIndent(tabContent.split("\n")), true);
   assert.strictEqual(lib.isTabIndent(spaceContent.split("\n")), false);
 });
+
+test("parseCheckbox", () => {
+  assert.deepStrictEqual(lib.parseCheckBox("hoge"), undefined);
+  assert.deepStrictEqual(lib.parseCheckBox("[ ] hello"), [" ", "hello"]);
+  assert.deepStrictEqual(lib.parseCheckBox("[x] aaa"), ["x", "aaa"]);
+});

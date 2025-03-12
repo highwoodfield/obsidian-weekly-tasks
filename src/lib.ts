@@ -51,16 +51,43 @@ export class MalformedMD {
   }
 }
 
+const REGEX_CHECKBOX = /^\[(.)] (.+)$/
+const CHECKBOX_UNDONE = " "
+
+export function parseCheckBox(text: string): [check: string, content: string] | undefined {
+  const match = text.match(REGEX_CHECKBOX);
+  if (!match) return undefined;
+  return [match[1], match[2]];
+}
+
 export class MDListNode {
   parent: MDListNode | undefined;
   srcPath: string;
   text: string;
+  checkText: string | undefined = undefined;
   children: MDListNode[] = [];
 
   constructor(parent: MDListNode | undefined, srcPath: string, text: string) {
     this.parent = parent;
     this.srcPath = srcPath;
     this.text = text;
+
+    const checkboxInfo = parseCheckBox(text);
+    if (checkboxInfo) {
+      this.checkText = checkboxInfo[0];
+      this.text = checkboxInfo[1];
+      console.log(text, this.checkText, this.text);
+    }
+  }
+
+  isAllChecked(): boolean {
+    const isCheckedRecurse = (node: MDListNode): boolean => {
+      for(const child of node.children) {
+        if (!isCheckedRecurse(child)) return false;
+      }
+      return node.checkText !== undefined && node.checkText !== CHECKBOX_UNDONE;
+    }
+    return isCheckedRecurse(this);
   }
 }
 
@@ -144,14 +171,14 @@ class Hunk {
  * @param srcPath
  * @param content
  */
-export function parseContentToTasks(srcPath: string, content: string) {
+export function parseContentToTasks(srcPath: string, content: string): TaskRoot | undefined {
   const hunks = parseContentToListHunks(srcPath, content);
   const taskRoot = new TaskRoot();
   for (const hunk of hunks) {
     const md = parseListHunkToTree(srcPath, hunk.lines);
     const childRoot = parseMDRootToTaskRoot(srcPath, md);
-    // Ignore malformed contents if there are no tasks in the hunk.
-    // Malformed contents I want is ones in the hunk with some tasks
+    // Ignore malformed contents if there are no valid tasks in the hunk.
+    // Malformed contents I want are ones in the hunk with some tasks
     // because the malformed contents may be "tasks" in that case.
     if (childRoot.taskWeeks.length > 0) {
       mergeTaskRoots(childRoot, taskRoot);
@@ -321,6 +348,12 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
   return root;
 }
 
+/**
+ * Merge two TaskRoots
+ *
+ * @param from will be merged to 'to'. 'from' itself won't be changed.
+ * @param to will be modified. After modified, The range of TaskWeeks in 'to' will be unique.
+ */
 export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
   to.malformedMDs.push(...from.malformedMDs)
   for (const fromTaskWeek of from.taskWeeks) {
