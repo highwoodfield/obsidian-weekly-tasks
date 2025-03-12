@@ -77,8 +77,7 @@ export function isTabIndent(lines: string[]) {
 
 export const DATE_RANGE_DELIMITER = " ~ ";
 export const DATE_FORMAT = "YYYY/MM/DD"
-const REGEX_MD_LIST_SPACE = /^(\s*)-\s+(.+)/;
-const REGEX_MD_LIST_TAB = /^(\t*)-\s+(.+)/;
+const REGEX_MD_LIST = /^(\s*)-\s+(.+)/;
 
 class MDListLine {
   srcPath: string;
@@ -91,8 +90,8 @@ class MDListLine {
     this.regexArr = regexArr;
   }
 
-  static create(tab: boolean, srcPath: string, text: string): MDListLine | undefined {
-    const match = text.match(tab ? REGEX_MD_LIST_TAB : REGEX_MD_LIST_SPACE);
+  static create(srcPath: string, text: string): MDListLine | undefined {
+    const match = text.match(REGEX_MD_LIST);
     if (!match) {
       return undefined;
     } else {
@@ -180,10 +179,9 @@ export function parseContentToListHunks(_srcPath: string, content: string): Hunk
 }
 
 export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDListNode {
-  const isTab = isTabIndent(rawLines);
   const lines = rawLines
     .map((line) => {
-      const mdLine = MDListLine.create(isTab, srcPath, line);
+      const mdLine = MDListLine.create(srcPath, line);
       if (mdLine === undefined) {
         throw parseError(srcPath, "Not a Markdown list line: " + line);
       }
