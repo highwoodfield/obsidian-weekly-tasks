@@ -31,7 +31,7 @@ function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boo
   if (!header) {
     for (const taskNode of tasks) {
       const taskLI = html.createEl("li");
-      taskLI.textContent = taskNode.text;
+      taskLI.textContent = taskNode.rawText;
       if (taskNode.children.length !== 0) {
         createTaskListHTML(taskLI.createEl("ul"), taskNode.children);
       }

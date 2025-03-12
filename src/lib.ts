@@ -64,12 +64,14 @@ export class MDListNode {
   parent: MDListNode | undefined;
   srcPath: string;
   text: string;
+  rawText: string;
   checkText: string | undefined = undefined;
   children: MDListNode[] = [];
 
   constructor(parent: MDListNode | undefined, srcPath: string, text: string) {
     this.parent = parent;
     this.srcPath = srcPath;
+    this.rawText = text;
     this.text = text;
 
     const checkboxInfo = parseCheckBox(text);
