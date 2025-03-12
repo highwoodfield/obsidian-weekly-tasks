@@ -80,12 +80,15 @@ export class MDListNode {
     }
   }
 
+  /**
+   * Lines which don't have checkbox are treated as checked.
+   */
   isAllChecked(): boolean {
     const isCheckedRecurse = (node: MDListNode): boolean => {
       for(const child of node.children) {
         if (!isCheckedRecurse(child)) return false;
       }
-      return node.checkText !== undefined && node.checkText !== CHECKBOX_UNDONE;
+      return node.checkText === undefined || node.checkText !== CHECKBOX_UNDONE;
     }
     return isCheckedRecurse(this);
   }
