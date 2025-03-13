@@ -78,21 +78,31 @@ export class MDListNode {
     if (checkboxInfo) {
       this.checkText = checkboxInfo[0];
       this.text = checkboxInfo[1];
-      console.log(text, this.checkText, this.text);
+      //console.log(text, this.checkText, this.text);
     }
   }
 
   /**
-   * Lines which don't have checkbox are treated as checked.
+   * If any of child nodes has unchecked checkbox, returns false.
+   * Otherwise, returns the state of the top node.
+   * If the top node doesn't have checkbox, it is treated as unchecked.
    */
   isAllChecked(): boolean {
-    const isCheckedRecurse = (node: MDListNode): boolean => {
-      for(const child of node.children) {
-        if (!isCheckedRecurse(child)) return false;
+    const hasUncheckedRecurse = (node: MDListNode): boolean | undefined => {
+      for (const child of node.children) {
+        const childResult = hasUncheckedRecurse(child);
+        if (childResult !== undefined && childResult) return true;
       }
-      return node.checkText === undefined || node.checkText !== CHECKBOX_UNDONE;
+      return node.checkText === undefined
+        ? undefined
+        : node.checkText === CHECKBOX_UNDONE;
     }
-    return isCheckedRecurse(this);
+    const hasUnchecked = hasUncheckedRecurse(this);
+    if (hasUnchecked !== undefined && hasUnchecked) {
+      return false;
+    } else {
+      return this.checkText !== undefined && this.checkText !== CHECKBOX_UNDONE;
+    }
   }
 }
 

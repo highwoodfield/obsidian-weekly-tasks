@@ -83,3 +83,71 @@ test("parseCheckbox", () => {
   assert.deepStrictEqual(lib.parseCheckBox("[ ] hello"), [" ", "hello"]);
   assert.deepStrictEqual(lib.parseCheckBox("[x] aaa"), ["x", "aaa"]);
 });
+
+test("isAllChecked", () => {
+  const cases = [
+    {
+      expect: false,
+      md: `- hoge`,
+    },
+    {
+      expect: false,
+      md: `- [ ] hoge`,
+    },
+    {
+      expect: true,
+      md: `- [x] hoge`,
+    },
+    {
+      expect: false,
+      md: `- hoge
+  - hoge`
+    },
+    {
+      expect: false,
+      md: `- hoge
+  - [ ] hoge`
+    },
+    {
+      expect: false,
+      md: `- hoge
+  - [x] hoge`
+    },
+    {
+      expect: false,
+      md: `- [ ] hoge
+  - hoge`
+    },
+    {
+      expect: false,
+      md: `- [ ] hoge
+  - [ ] hoge`
+    },
+    {
+      expect: false,
+      md: `- [ ] hoge
+  - [x] hoge`
+    },
+    {
+      expect: true,
+      md: `- [x] hoge
+  - hoge`
+    },
+    {
+      expect: false,
+      md: `- [x] hoge
+  - [ ] hoge`
+    },
+    {
+      expect: true,
+      md: `- [x] hoge
+  - [x] hoge`
+    }
+  ];
+  for (const c of cases) {
+    const node = lib.parseListHunkToTree("SRCPATH", c.md.split("\n"));
+    console.log("=====")
+    console.log(c, node.children[0]);
+    assert.strictEqual(node.children[0].isAllChecked(), c.expect, c.md);
+  }
+});
