@@ -135,7 +135,10 @@ export default class WTCPlugin extends Plugin {
           folderStack.push(child);
         } else if (child instanceof TFile) {
           const content = await this.app.vault.cachedRead(child);
-          const taskRootChild = lib.parseContentToTasks(child.path, content);
+          const srcPath = child.path
+            .replace(rootPath + "/", "")
+            .replace(/\.md$/, "");
+          const taskRootChild = lib.parseContentToTasks(srcPath, content);
           if (taskRootChild) {
             for (let malformedMD of taskRootChild.malformedMDs) {
               console.log(malformedMD);
