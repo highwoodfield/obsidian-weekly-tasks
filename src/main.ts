@@ -82,13 +82,16 @@ export default class WTCPlugin extends Plugin {
     }
     const { earliestYMD, latestYMD } = elDates;
 
+    const oldTaskDateBound = new Date();
+    oldTaskDateBound.setDate(oldTaskDateBound.getDate() - 7);
+
     const details = el.createEl("details")
     details.createEl("summary").textContent = "Old Tasks";
     const oldTasksUL = details.createEl("ul");
     el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
     for (const currentYMD of lib.genDates(earliestYMD, latestYMD)) {
-      const tgtUL = currentYMD.earlierThan(YMD.fromDate(new Date()))
+      const tgtUL = currentYMD.earlierThan(YMD.fromDate(oldTaskDateBound))
         ? oldTasksUL
         : futureTasksUL;
       const taskWeek = tasks.getTaskWeekByDate(currentYMD);
