@@ -62,6 +62,21 @@ function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boo
   }
 }
 
+/**
+ * boolがtrueならe.textContentを<b>にしてかつemphasisTextをくっつける
+ * @param bool
+ * @param e
+ * @param text
+ * @param emphasisText
+ */
+function emphasisIfTrue(bool: boolean, e: HTMLElement, text: string, emphasisText: string) {
+  if (bool) {
+    e.createEl("b").textContent = text + emphasisText;
+  } else {
+    e.textContent = text;
+  }
+}
+
 // noinspection JSUnusedGlobalSymbols
 export default class WTCPlugin extends Plugin {
   settings: WTCSettings;
@@ -94,20 +109,18 @@ export default class WTCPlugin extends Plugin {
       const tgtUL = currentYMD.earlierThan(YMD.fromDate(oldTaskDateBound))
         ? oldTasksUL
         : futureTasksUL;
+      // currentYMDの週のタスク一覧があれば生成する
       const taskWeek = tasks.getTaskWeekByDate(currentYMD);
       if (taskWeek !== undefined) {
         const weekLI = tgtUL.createEl("li");
-        weekLI.textContent = taskWeek.range.toString();
+        emphasisIfTrue(taskWeek.range.doesInclude(YMD.today()), weekLI, taskWeek.range.toString(), " (THIS WEEK)");
         const weeklyTaskUL = weekLI.createEl("ul");
         const skipped = createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
         if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
       }
+      // currentYMDの日のタスク一覧があれば生成する。なかった場合は日付だけ挿入。
       const dateLI = tgtUL.createEl("li");
-      if (currentYMD.equals(YMD.today())) {
-        dateLI.createEl("b").textContent = currentYMD.toString() + " (TODAY)";
-      } else {
-        dateLI.textContent = currentYMD.toString();
-      }
+      emphasisIfTrue(currentYMD.equals(YMD.today()), dateLI, currentYMD.toString(), " (TODAY)");
       const taskDay = tasks.getTaskDay(currentYMD);
       if (taskDay !== undefined) {
         const dayUL = dateLI.createEl("ul");
