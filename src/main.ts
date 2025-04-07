@@ -106,7 +106,6 @@ export default class WTCPlugin extends Plugin {
       dateLI.textContent = currentYMD.toString();
       const taskDay = tasks.getTaskDay(currentYMD);
       if (taskDay !== undefined) {
-        dateLI.textContent = taskDay.date.toString();
         const dayUL = dateLI.createEl("ul");
         const skipped = createTaskListHTML(dayUL, taskDay.tasks, true);
         if (skipped !== 0) dayUL.createEl("li").textContent = `${skipped} checked tasks`
