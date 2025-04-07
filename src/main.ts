@@ -104,7 +104,7 @@ export default class WTCPlugin extends Plugin {
       }
       const dateLI = tgtUL.createEl("li");
       if (currentYMD.equals(YMD.today())) {
-        dateLI.createEl("b").textContent = currentYMD.toString();
+        dateLI.createEl("b").textContent = currentYMD.toString() + " (TODAY)";
       } else {
         dateLI.textContent = currentYMD.toString();
       }
