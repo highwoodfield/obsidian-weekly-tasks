@@ -269,6 +269,7 @@ export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDList
 
 export class TaskRoot {
   taskWeeks: TaskWeek[] = [];
+  taskDays: TaskDay[] = [];
   malformedMDs: MalformedMD[] = [];
 
   getTaskWeek(range: DateRange) {
@@ -277,18 +278,12 @@ export class TaskRoot {
     }
     return undefined;
   }
-}
 
-export class TaskWeek {
-  range: DateRange;
-  taskDays: TaskDay[] = [];
-  tasks: MDListNode[] = [];
-
-  constructor(range: DateRange) {
-    if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY || range.to.toDate().getDay() !== WEEK_END_DAY) {
-      throw new Error("Invalid week range: " + range);
+  getTaskWeekByDate(date: YMD) {
+    for (const e of this.taskWeeks) {
+      if (e.range.from.equals(date)) return e;
     }
-    this.range = range;
+    return undefined;
   }
 
   getTaskDay(tgt: YMD) {
@@ -296,6 +291,43 @@ export class TaskWeek {
       if (e.date.equals(tgt)) return e;
     }
     return undefined;
+  }
+
+  getEarliestLatestDate(): { earliestYMD: YMD, latestYMD: YMD } | undefined {
+    const dates: YMD[] = [];
+    this.taskDays.map(value => value.date)
+      .forEach(value => dates.push(value));
+    this.taskWeeks.map(value => value.range)
+      .forEach(value => dates.push(value.from, value.to));
+    if (dates.length < 1) {
+      return undefined;
+    }
+    let earliest: YMD | undefined = undefined;
+    let latest: YMD | undefined = undefined;
+    for (const date of dates) {
+      if (earliest === undefined || date.earlierThan(earliest)) {
+        earliest = date;
+      }
+      if (latest === undefined || date.laterThan(latest)) {
+        latest = date;
+      }
+    }
+    if (earliest === undefined || latest === undefined) {
+      return undefined;
+    }
+    return { earliestYMD: earliest, latestYMD: latest };
+  }
+}
+
+export class TaskWeek {
+  range: DateRange;
+  tasks: MDListNode[] = [];
+
+  constructor(range: DateRange) {
+    if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY || range.to.toDate().getDay() !== WEEK_END_DAY) {
+      throw new Error("Invalid week range: " + range);
+    }
+    this.range = range;
   }
 }
 
@@ -353,7 +385,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
           root.malformedMDs.push(new MalformedMD("date out of range", weekElement));
           continue;
         }
-        taskWeek.taskDays.push(taskDay);
+        root.taskDays.push(taskDay);
         taskDay.tasks.push(...weekElement.children);
       } else {
         taskWeek.tasks.push(weekElement);
@@ -377,14 +409,14 @@ export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
       to.taskWeeks.push(fromTaskWeek);
     } else {
       toTaskWeek.tasks.push(...fromTaskWeek.tasks);
-      for (const fromTaskDay of fromTaskWeek.taskDays) {
-        const toTaskDay = toTaskWeek.getTaskDay(fromTaskDay.date);
-        if (toTaskDay === undefined) {
-          toTaskWeek.taskDays.push(fromTaskDay);
-        } else {
-          toTaskDay.tasks.push(...fromTaskDay.tasks);
-        }
-      }
+    }
+  }
+  for (const fromTaskDay of from.taskDays) {
+    const toTaskDay = to.getTaskDay(fromTaskDay.date);
+    if (toTaskDay === undefined) {
+      to.taskDays.push(fromTaskDay);
+    } else {
+      toTaskDay.tasks.push(...fromTaskDay.tasks);
     }
   }
 }
@@ -419,6 +451,11 @@ export class YMD {
     return moment(this.toDate()).format(DATE_FORMAT);
   }
 
+  /**
+   *
+   * @param another
+   * @return positive value if this object is later than another. Negative if earlier. Zero if equal
+   */
   compare(another: YMD): number {
     const y = this.year - another.year;
     if (y !== 0) return y;
@@ -429,6 +466,14 @@ export class YMD {
 
   equals(another: YMD): boolean {
     return this.year === another.year && this.month === another.month && this.day === another.day;
+  }
+
+  earlierThan(another: YMD): boolean {
+    return this.compare(another) < 0;
+  }
+
+  laterThan(another: YMD): boolean {
+    return this.compare(another) > 0;
   }
 }
 

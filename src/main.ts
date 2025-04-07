@@ -6,7 +6,7 @@ import {
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, TaskRoot} from "./lib.js";
+import {MDListNode, TaskRoot, YMD} from "./lib.js";
 
 interface WTCSettings {
   mySetting: string;
@@ -75,28 +75,40 @@ export default class WTCPlugin extends Plugin {
     await this.collectTasksIfNeeded(src.trim());
     const tasks = this.tasksMap.get(src.trim());
     if (!tasks) throw "Cache may be broken.";
-    if (tasks.taskWeeks.length === 0) {
+    const elDates = tasks.getEarliestLatestDate();
+    if (elDates === undefined) {
       el.textContent = "WTC: No tasks found.";
       return;
     }
+    const { earliestYMD, latestYMD } = elDates;
+    const earliestDate = earliestYMD.toDate();
+    const currentDate = new Date(earliestDate);
+    let currentYMD = YMD.fromDate(currentDate);
 
     const rootUL = el.createEl("ul");
-    for (const taskWeek of tasks.taskWeeks.sort((a, b) => a.range.from.compare(b.range.from))) {
-      const weekLI = rootUL.createEl("li");
-      weekLI.textContent = taskWeek.range.toString();
-      const weeklyTaskUL = weekLI.createEl("ul");
-
-      for (const taskDay of taskWeek.taskDays.sort((a, b) => a.date.compare(b.date))) {
-        const dayLI = weeklyTaskUL.createEl("li");
-        dayLI.textContent = taskDay.date.toString();
-        const dayUL = dayLI.createEl("ul");
+    while (currentYMD.earlierThan(latestYMD) || currentYMD.equals(latestYMD)) {
+      const taskWeek = tasks.getTaskWeekByDate(currentYMD);
+      if (taskWeek !== undefined) {
+        const weekLI = rootUL.createEl("li");
+        weekLI.textContent = taskWeek.range.toString();
+        const weeklyTaskUL = weekLI.createEl("ul");
+        const skipped = createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
+        if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
+      }
+      const dateLI = rootUL.createEl("li");
+      dateLI.textContent = currentYMD.toString();
+      const taskDay = tasks.getTaskDay(currentYMD);
+      if (taskDay !== undefined) {
+        dateLI.textContent = taskDay.date.toString();
+        const dayUL = dateLI.createEl("ul");
         const skipped = createTaskListHTML(dayUL, taskDay.tasks, true);
         if (skipped !== 0) dayUL.createEl("li").textContent = `${skipped} checked tasks`
       }
 
-      const skipped = createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
-      if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentYMD = YMD.fromDate(currentDate);
     }
+
     if (tasks.malformedMDs.length > 0) {
       const malformedLI = rootUL.createEl("li");
       malformedLI.textContent = "Malformed contents";
