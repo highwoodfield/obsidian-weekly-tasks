@@ -1,12 +1,10 @@
-import {
-  App,
-  Modal, Notice,
-  Plugin, Setting, TFile, TFolder
-} from 'obsidian';
+import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, TaskRoot, YMD} from "./lib.js";
+import {MDListNode, TaskRoot} from "./lib.js"
+import {DATE_FORMAT, YMD } from "./datetime";
+import * as datetime from "./datetime.js"
 
 interface WTCSettings {
   mySetting: string;
@@ -105,7 +103,7 @@ export default class WTCPlugin extends Plugin {
     const oldTasksUL = details.createEl("ul");
     el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
-    for (const currentYMD of lib.genDates(earliestYMD, latestYMD)) {
+    for (const currentYMD of datetime.genDates(earliestYMD, latestYMD)) {
       const tgtUL = currentYMD.earlierThan(YMD.fromDate(oldTaskDateBound))
         ? oldTasksUL
         : futureTasksUL;
@@ -232,7 +230,7 @@ class TemplateInsertionModal extends Modal {
     new Setting(contentEl)
       .setName("From")
       .addMomentFormat(component => {
-        component.setDefaultFormat(lib.DATE_FORMAT)
+        component.setDefaultFormat(DATE_FORMAT)
           .onChange(value => {
             this.from = value;
           })
@@ -240,7 +238,7 @@ class TemplateInsertionModal extends Modal {
     new Setting(contentEl)
       .setName("To")
       .addMomentFormat(component => {
-        component.setDefaultFormat(lib.DATE_FORMAT)
+        component.setDefaultFormat(DATE_FORMAT)
           .onChange(value => {
             this.to = value;
           })
@@ -256,8 +254,8 @@ class TemplateInsertionModal extends Modal {
   }
 
   async insertText() {
-    const fromMmt = moment(this.from, lib.DATE_FORMAT);
-    const toMmt = moment(this.to, lib.DATE_FORMAT);
+    const fromMmt = moment(this.from, DATE_FORMAT);
+    const toMmt = moment(this.to, DATE_FORMAT);
     if (!fromMmt.isValid() || !toMmt.isValid()) {
       new Notice("Invalid format");
       return;
