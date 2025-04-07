@@ -85,17 +85,23 @@ export default class WTCPlugin extends Plugin {
     const currentDate = new Date(earliestDate);
     let currentYMD = YMD.fromDate(currentDate);
 
-    const rootUL = el.createEl("ul");
+    const details = el.createEl("details")
+    details.createEl("summary").textContent = "Old Tasks";
+    const oldTasksUL = details.createEl("ul");
+    const futureTasksUL = el.createEl("ul");
     while (currentYMD.earlierThan(latestYMD) || currentYMD.equals(latestYMD)) {
+      const tgtUL = currentYMD.earlierThan(YMD.fromDate(new Date()))
+        ? oldTasksUL
+        : futureTasksUL;
       const taskWeek = tasks.getTaskWeekByDate(currentYMD);
       if (taskWeek !== undefined) {
-        const weekLI = rootUL.createEl("li");
+        const weekLI = tgtUL.createEl("li");
         weekLI.textContent = taskWeek.range.toString();
         const weeklyTaskUL = weekLI.createEl("ul");
         const skipped = createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
         if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
       }
-      const dateLI = rootUL.createEl("li");
+      const dateLI = tgtUL.createEl("li");
       dateLI.textContent = currentYMD.toString();
       const taskDay = tasks.getTaskDay(currentYMD);
       if (taskDay !== undefined) {
@@ -110,7 +116,7 @@ export default class WTCPlugin extends Plugin {
     }
 
     if (tasks.malformedMDs.length > 0) {
-      const malformedLI = rootUL.createEl("li");
+      const malformedLI = futureTasksUL.createEl("li");
       malformedLI.textContent = "Malformed contents";
       const malformedUL = malformedLI.createEl("ul");
       tasks.malformedMDs.forEach(malformedMD => {
