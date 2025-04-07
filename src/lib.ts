@@ -195,7 +195,7 @@ export function parseContentToTasks(srcPath: string, content: string): TaskRoot 
     // Ignore malformed contents if there are no valid tasks in the hunk.
     // Malformed contents I want are ones in the hunk with some tasks
     // because the malformed contents may be "tasks" in that case.
-    if (childRoot.taskWeeks.length > 0) {
+    if (childRoot.taskWeeks.length > 0 || childRoot.taskDays.length > 0) {
       mergeTaskRoots(childRoot, taskRoot);
     }
   }
