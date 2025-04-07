@@ -361,35 +361,29 @@ function parseWeekStr(s: string): DateRange | string {
 
 export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): TaskRoot {
   const root = new TaskRoot();
-  for (const weekMD of mdRoot.children) {
-    const weekRange = parseWeekStr(weekMD.text);
-    if (typeof weekRange === "string") {
-      // throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
-      root.malformedMDs.push(new MalformedMD("Invalid range format", weekMD));
-      continue;
-    }
-    let taskWeek: TaskWeek;
-    try {
-      taskWeek = new TaskWeek(weekRange);
-    } catch (e) {
-      // skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
-      root.malformedMDs.push(new MalformedMD("Invalid week range", weekMD));
-      continue;
-    }
-    root.taskWeeks.push(taskWeek);
-    for (const weekElement of weekMD.children) {
-      const m = moment(weekElement.text, DATE_FORMAT, true);
-      if (m.isValid()) {
-        const taskDay = new TaskDay(YMD.fromMoment(m));
-        if (!taskWeek.range.doesInclude(taskDay.date)) {
-          root.malformedMDs.push(new MalformedMD("date out of range", weekElement));
-          continue;
-        }
-        root.taskDays.push(taskDay);
-        taskDay.tasks.push(...weekElement.children);
-      } else {
-        taskWeek.tasks.push(weekElement);
+  for (const child of mdRoot.children) {
+    const asMoment = moment(child.text, DATE_FORMAT, true);
+    if (asMoment.isValid()) { // Parse as TaskDay
+      const taskDay = new TaskDay(YMD.fromMoment(asMoment));
+      root.taskDays.push(taskDay);
+      taskDay.tasks.push(...child.children);
+    } else { // Parse as TaskWeek
+      const weekRange = parseWeekStr(child.text);
+      if (typeof weekRange === "string") {
+        // throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
+        root.malformedMDs.push(new MalformedMD("Invalid range format", child));
+        continue;
       }
+      let taskWeek: TaskWeek;
+      try {
+        taskWeek = new TaskWeek(weekRange);
+      } catch (e) {
+        // skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
+        root.malformedMDs.push(new MalformedMD("Invalid week range", child));
+        continue;
+      }
+      root.taskWeeks.push(taskWeek);
+      taskWeek.tasks.push(...child.children);
     }
   }
   return root;
