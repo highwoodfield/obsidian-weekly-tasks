@@ -415,6 +415,17 @@ export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
   }
 }
 
+export function* genDates(from: YMD, to: YMD) {
+  const earliestDate = from.toDate();
+  const currentDate = new Date(earliestDate);
+  let currentYMD = YMD.fromDate(currentDate);
+  while (currentYMD.earlierThan(to) || currentYMD.equals(to)) {
+    yield currentYMD;
+
+    currentDate.setDate(currentDate.getDate() + 1);
+    currentYMD = YMD.fromDate(currentDate);
+  }
+}
 /**
  * Local Time Zone.
  */
@@ -480,14 +491,15 @@ function nextDay(date: Date, day: number): Date {
 }
 
 export function generateTaskListTemplate(from: Date, to: Date) {
-  let cursor = new Date(from);
   let output: string = "";
-  while (cursor.getTime() < to.getTime()) {
-    const begin = nextDay(cursor, WEEK_BEGIN_DAY);
-    const end = nextDay(begin, WEEK_END_DAY);
-    cursor = new Date(end);
-    output = output.concat("- " + moment(begin).format(DATE_FORMAT) +
-      DATE_RANGE_DELIMITER + moment(end).format(DATE_FORMAT) + "\n");
+  for (const currentYMD of genDates(YMD.fromDate(from), YMD.fromDate(to))) {
+    const currentDate = currentYMD.toDate();
+    if (currentDate.getDay() === WEEK_BEGIN_DAY) {
+      const end = nextDay(currentDate, WEEK_END_DAY);
+      output = output.concat("- " + moment(currentDate).format(DATE_FORMAT) +
+        DATE_RANGE_DELIMITER + moment(end).format(DATE_FORMAT) + "\n");
+    }
+    output = output.concat("- " + moment(currentDate).format(DATE_FORMAT) + "\n");
   }
   return output;
 }

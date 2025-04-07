@@ -81,16 +81,13 @@ export default class WTCPlugin extends Plugin {
       return;
     }
     const { earliestYMD, latestYMD } = elDates;
-    const earliestDate = earliestYMD.toDate();
-    const currentDate = new Date(earliestDate);
-    let currentYMD = YMD.fromDate(currentDate);
 
     const details = el.createEl("details")
     details.createEl("summary").textContent = "Old Tasks";
     const oldTasksUL = details.createEl("ul");
     el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
-    while (currentYMD.earlierThan(latestYMD) || currentYMD.equals(latestYMD)) {
+    for (const currentYMD of lib.genDates(earliestYMD, latestYMD)) {
       const tgtUL = currentYMD.earlierThan(YMD.fromDate(new Date()))
         ? oldTasksUL
         : futureTasksUL;
@@ -110,9 +107,6 @@ export default class WTCPlugin extends Plugin {
         const skipped = createTaskListHTML(dayUL, taskDay.tasks, true);
         if (skipped !== 0) dayUL.createEl("li").textContent = `${skipped} checked tasks`
       }
-
-      currentDate.setDate(currentDate.getDate() + 1);
-      currentYMD = YMD.fromDate(currentDate);
     }
 
     if (tasks.malformedMDs.length > 0) {
