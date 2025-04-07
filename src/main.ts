@@ -88,6 +88,7 @@ export default class WTCPlugin extends Plugin {
     const details = el.createEl("details")
     details.createEl("summary").textContent = "Old Tasks";
     const oldTasksUL = details.createEl("ul");
+    el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
     while (currentYMD.earlierThan(latestYMD) || currentYMD.equals(latestYMD)) {
       const tgtUL = currentYMD.earlierThan(YMD.fromDate(new Date()))
