@@ -150,9 +150,9 @@ class Hunk {
  * @param srcPath
  * @param content
  */
-export function parseContentToTasks(srcPath: string, content: string): TaskRoot | undefined {
+export function parseContentToTasks(srcPath: string, content: string): RootTask | undefined {
   const hunks = parseContentToListHunks(srcPath, content);
-  const taskRoot = new TaskRoot();
+  const taskRoot = new RootTask();
   for (const hunk of hunks) {
     const md = parseListHunkToTree(srcPath, hunk.lines);
     const childRoot = parseMDRootToTaskRoot(srcPath, md);
@@ -231,9 +231,17 @@ export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDList
   return root;
 }
 
-export class TaskRoot {
-  taskWeeks: TaskWeek[] = [];
-  taskDays: TaskDay[] = [];
+/* TODO
+できることなら、もっと内部構造を隠蔽したい。
+あたかも、ある日からある日まで、すべてのエントリを持っているかのような振る舞いをさせたい。
+TaskRoot#addWeeklyTaskみたいな便利メソッドをはやしたいかも。
+
+なぜ?そうすれば、タスクの追加とかやりやすくなるんじゃないか。既存の木に追記しやすいのではないか。
+ */
+
+export class RootTask {
+  taskWeeks: WeekTask[] = [];
+  taskDays: DateTask[] = [];
   malformedMDs: MalformedMD[] = [];
 
   getTaskWeek(range: DateRange) {
@@ -283,7 +291,7 @@ export class TaskRoot {
   }
 }
 
-export class TaskWeek {
+export class WeekTask {
   range: DateRange;
   tasks: MDListNode[] = [];
 
@@ -295,7 +303,7 @@ export class TaskWeek {
   }
 }
 
-export class TaskDay {
+export class DateTask {
   date: YMD;
   tasks: MDListNode[] = [];
 
@@ -323,12 +331,12 @@ function parseWeekStr(s: string): DateRange | string {
   }
 }
 
-export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): TaskRoot {
-  const root = new TaskRoot();
+export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): RootTask {
+  const root = new RootTask();
   for (const child of mdRoot.children) {
     const asMoment = moment(child.text, DATE_FORMAT, true);
     if (asMoment.isValid()) { // Parse as TaskDay
-      const taskDay = new TaskDay(YMD.fromMoment(asMoment));
+      const taskDay = new DateTask(YMD.fromMoment(asMoment));
       root.taskDays.push(taskDay);
       taskDay.tasks.push(...child.children);
     } else { // Parse as TaskWeek
@@ -338,9 +346,9 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
         root.malformedMDs.push(new MalformedMD("Invalid range format", child));
         continue;
       }
-      let taskWeek: TaskWeek;
+      let taskWeek: WeekTask;
       try {
-        taskWeek = new TaskWeek(weekRange);
+        taskWeek = new WeekTask(weekRange);
       } catch (e) {
         // skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
         root.malformedMDs.push(new MalformedMD("Invalid week range", child));
@@ -359,7 +367,7 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
  * @param from will be merged to 'to'. 'from' itself won't be changed.
  * @param to will be modified. After modified, The range of TaskWeeks in 'to' will be unique.
  */
-export function mergeTaskRoots(from: TaskRoot, to: TaskRoot) {
+export function mergeTaskRoots(from: RootTask, to: RootTask) {
   to.malformedMDs.push(...from.malformedMDs)
   for (const fromTaskWeek of from.taskWeeks) {
     const toTaskWeek = to.getTaskWeek(fromTaskWeek.range);

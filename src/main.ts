@@ -2,7 +2,7 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, TaskRoot} from "./lib.js"
+import {MDListNode, RootTask} from "./lib.js"
 import {DATE_FORMAT, YMD } from "./datetime";
 import * as datetime from "./datetime.js"
 
@@ -82,7 +82,7 @@ export default class WTCPlugin extends Plugin {
   // Key: root path, Value: epoch time seconds
   latestUpdateTimes: Map<string, number> = new Map();
   // Key: root path, Value: tasks
-  tasksMap: Map<string, lib.TaskRoot> = new Map();
+  tasksMap: Map<string, lib.RootTask> = new Map();
 
   async showTasks(src: string, el: HTMLElement) {
     await this.collectTasksIfNeeded(src.trim());
@@ -156,7 +156,7 @@ export default class WTCPlugin extends Plugin {
     }
 
     const folderStack: TFolder[] = [rootFolder];
-    const taskRoot = new TaskRoot();
+    const taskRoot = new RootTask();
     while (folderStack.length > 0) {
       const got = folderStack.pop();
       if (!got) throw "Unreachable";
