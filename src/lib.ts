@@ -440,6 +440,10 @@ export class YMD {
     this.day = day;
   }
 
+  static today() {
+    return this.fromDate(new Date());
+  }
+
   static fromMoment(m: moment.Moment) {
     return this.fromDate(m.toDate());
   }
