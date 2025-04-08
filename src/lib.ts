@@ -234,10 +234,22 @@ export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDList
 export class Tasks {
   private weeklyData: WeeklyData[] = [];
   private dailyData: DailyData[] = [];
-  malformedMDs: MalformedMD[] = [];
+  private malformedMDs: MalformedMD[] = [];
 
   hasValidData() {
     return this.weeklyData.length > 0 || this.dailyData.length > 0;
+  }
+
+  hasMalformedMDs() {
+    return this.malformedMDs.length > 0;
+  }
+
+  addMalformedMDs(...malformedMDs: MalformedMD[]) {
+    this.malformedMDs.push(...malformedMDs);
+  }
+
+  getMalformedMDs() {
+    return [...this.malformedMDs];
   }
 
   getWeekTasksByRange(range: DateRange) {
@@ -292,6 +304,7 @@ export class Tasks {
   }
 
   addAll(tasks: Tasks) {
+    this.addMalformedMDs(...tasks.malformedMDs);
     for (const weeklyDatum of tasks.weeklyData) {
       this.addWeekTasks(weeklyDatum.range, ...weeklyDatum.tasks);
     }
@@ -379,14 +392,14 @@ export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode):
       const weekRange = parseWeekStr(rawDateOrRange.text);
       if (typeof weekRange === "string") {
         // throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
-        tasks.malformedMDs.push(new MalformedMD("Invalid range format", rawDateOrRange));
+        tasks.addMalformedMDs(new MalformedMD("Invalid range format", rawDateOrRange));
         continue;
       }
       try {
         validateRange(weekRange);
       } catch (e) {
         // skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
-        tasks.malformedMDs.push(new MalformedMD("Invalid week range", rawDateOrRange));
+        tasks.addMalformedMDs(new MalformedMD("Invalid week range", rawDateOrRange));
         continue;
       }
       tasks.addWeekTasks(weekRange, ...rawDateOrRange.children)

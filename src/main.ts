@@ -127,11 +127,11 @@ export default class WTCPlugin extends Plugin {
       }
     }
 
-    if (tasks.malformedMDs.length > 0) {
+    if (tasks.hasMalformedMDs()) {
       const malformedLI = futureTasksUL.createEl("li");
       malformedLI.textContent = "Malformed contents";
       const malformedUL = malformedLI.createEl("ul");
-      tasks.malformedMDs.forEach(malformedMD => {
+      tasks.getMalformedMDs().forEach(malformedMD => {
         const li = malformedUL.createEl("li");
         li.textContent = malformedMD.toString();
       });
@@ -170,7 +170,7 @@ export default class WTCPlugin extends Plugin {
             .replace(/\.md$/, "");
           const fileTasks = lib.parseContentToTasks(srcPath, content);
           if (fileTasks) {
-            for (let malformedMD of fileTasks.malformedMDs) {
+            for (const malformedMD of fileTasks.getMalformedMDs()) {
               console.log(malformedMD);
             }
             tasks.addAll(fileTasks);
