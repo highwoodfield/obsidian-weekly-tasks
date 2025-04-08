@@ -108,7 +108,7 @@ export default class WTCPlugin extends Plugin {
         ? oldTasksUL
         : futureTasksUL;
       // currentYMDの週のタスク一覧があれば生成する
-      const weeklyTasks = tasks.getWeekTasksByFromDate(currentYMD);
+      const weeklyTasks = tasks.getWeeklyTasksByFromDate(currentYMD);
       if (weeklyTasks !== undefined) {
         const weekLI = tgtUL.createEl("li");
         emphasisIfTrue(weeklyTasks[0].doesInclude(YMD.today()), weekLI, weeklyTasks[0].toString(), " (THIS WEEK)");

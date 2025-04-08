@@ -252,14 +252,14 @@ export class Tasks {
     return [...this.malformedMDs];
   }
 
-  getWeekTasksByRange(range: DateRange) {
+  getWeeklyTasksByRange(range: DateRange) {
     for (const e of this.weeklyData) {
       if (e.range.equals(range)) return [...e.tasks];
     }
     return undefined;
   }
 
-  getWeekTasksByFromDate(date: YMD): [DateRange, MDListNode[]] | undefined {
+  getWeeklyTasksByFromDate(date: YMD): [DateRange, MDListNode[]] | undefined {
     for (const e of this.weeklyData) {
       if (e.range.from.equals(date)) return [e.range, [...e.tasks]];
     }
@@ -345,7 +345,7 @@ function validateRange(range: DateRange) {
   }
 }
 
-export class WeeklyData {
+class WeeklyData {
   range: DateRange;
   tasks: MDListNode[] = [];
 
@@ -354,7 +354,7 @@ export class WeeklyData {
   }
 }
 
-export class DailyData {
+class DailyData {
   date: YMD;
   tasks: MDListNode[] = [];
 
