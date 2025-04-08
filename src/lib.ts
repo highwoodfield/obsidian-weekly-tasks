@@ -138,10 +138,10 @@ function parseError(path: string, msg: string) {
   return new Error(path + ": Unable to parse: " + msg);
 }
 
-class Hunk {
-  lines: string[]
+class MDListHunk {
+  lines: MDListLine[]
 
-  constructor(lines: string[]) {
+  constructor(lines: MDListLine[]) {
     this.lines = Array.from(lines);
   }
 }
@@ -168,33 +168,26 @@ export function parseContentToTasks(srcPath: string, content: string): Tasks | u
   return tasks.hasValidData() ? tasks : undefined;
 }
 
-export function parseContentToListHunks(_srcPath: string, content: string): Hunk[] {
-  const buffer: string[] = []
-  const hunks: Hunk[] = [];
+export function parseContentToListHunks(srcPath: string, content: string): MDListHunk[] {
+  const buffer: MDListLine[] = []
+  const hunks: MDListHunk[] = [];
   for (const line of content.split("\n")) {
-    const isListElement = MDListLine.isMDListLine(line);
-    if (buffer.length !== 0 && !isListElement) {
-      hunks.push(new Hunk(buffer));
+    const mdListLine = MDListLine.fromLine(srcPath, line);
+    // Flush
+    if (buffer.length !== 0 && !mdListLine) {
+      hunks.push(new MDListHunk(buffer));
       buffer.splice(0);
     }
-    if (isListElement) {
-      buffer.push(line);
+    if (mdListLine) {
+      buffer.push(mdListLine);
     }
   }
-  hunks.push(new Hunk(buffer));
+  hunks.push(new MDListHunk(buffer));
 
   return hunks;
 }
 
-export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDListNode {
-  const lines = rawLines
-    .map((line) => {
-      const mdLine = MDListLine.fromLine(srcPath, line);
-      if (mdLine === undefined) {
-        throw parseError(srcPath, "Not a Markdown list line: " + line);
-      }
-      return mdLine;
-    });
+export function parseListHunkToTree(srcPath: string, lines: MDListLine[]): MDListNode {
   const indentStep = getMinimumIndentStep(lines);
 
   const root = new MDListRootNode();
