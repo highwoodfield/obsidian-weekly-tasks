@@ -83,51 +83,53 @@ export function isTabIndent(lines: string[]) {
   return lines.find((line) => line.startsWith('\t')) !== undefined;
 }
 
-const REGEX_MD_LIST = /^(\s*)-\s+(.+)/;
+const REGEX_MD_LIST_WITH_CONTENT = /^(\s*)-\s+(.+)$/;
+const REGEX_MD_LIST_EMPTY = /^(\s*)-$/;
 
 class MDListLine {
-  srcPath: string;
-  text: string;
-  regexArr: RegExpMatchArray;
+  readonly srcPath: string;
+  readonly rawText: string;
+  readonly indentCharLen: number;
+  readonly content: string;
 
-  private constructor(srcPath: string, text: string, regexArr: RegExpMatchArray) {
+  constructor(srcPath: string, rawText: string, indentCharLen: number, content: string) {
     this.srcPath = srcPath;
-    this.text = text;
-    this.regexArr = regexArr;
+    this.rawText = rawText;
+    this.indentCharLen = indentCharLen;
+    this.content = content;
   }
 
-  static create(srcPath: string, text: string): MDListLine | undefined {
-    const match = text.match(REGEX_MD_LIST);
-    if (!match) {
-      return undefined;
-    } else {
-      return new MDListLine(srcPath, text, match);
+  static fromLine(srcPath: string, text: string): MDListLine | undefined {
+    const matchWithContent = text.match(REGEX_MD_LIST_WITH_CONTENT);
+    if (matchWithContent) {
+      return new MDListLine(srcPath, text, matchWithContent[1].length, matchWithContent[2]);
     }
+    const matchEmpty = text.match(REGEX_MD_LIST_EMPTY);
+    if (matchEmpty) {
+      return new MDListLine(srcPath, text, matchEmpty[1].length, "");
+    }
+    return undefined;
   }
 
-  getIndentCharLen(): number {
-    return this.regexArr[1].length;
+  static isMDListLine(line: string): boolean {
+    return MDListLine.fromLine("", line) !== undefined;
   }
 
   getIndentLevel(step: number) {
-    if (this.getIndentCharLen() % step !== 0) return undefined;
-    return this.getIndentCharLen() / step;
-  }
-
-  getContent(): string {
-    return this.regexArr[2];
+    if (this.indentCharLen % step !== 0) return undefined;
+    return this.indentCharLen / step;
   }
 
   toNode() {
-    return new MDListNode(undefined, this.srcPath, this.getContent());
+    return new MDListNode(undefined, this.srcPath, this.content);
   }
 }
 
 export function getMinimumIndentStep(lines: MDListLine[]) {
   let min = -1;
   for (const line of lines) {
-    if (line.getIndentCharLen() === 0) continue;
-    if (min === -1 || line.getIndentCharLen() < min) min = line.getIndentCharLen();
+    if (line.indentCharLen === 0) continue;
+    if (min === -1 || line.indentCharLen < min) min = line.indentCharLen;
   }
   return min === -1 ? 2 : min;
 }
@@ -170,7 +172,7 @@ export function parseContentToListHunks(_srcPath: string, content: string): Hunk
   const buffer: string[] = []
   const hunks: Hunk[] = [];
   for (const line of content.split("\n")) {
-    const isListElement = line.trimStart()[0] === '-';
+    const isListElement = MDListLine.isMDListLine(line);
     if (buffer.length !== 0 && !isListElement) {
       hunks.push(new Hunk(buffer));
       buffer.splice(0);
@@ -187,7 +189,7 @@ export function parseContentToListHunks(_srcPath: string, content: string): Hunk
 export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDListNode {
   const lines = rawLines
     .map((line) => {
-      const mdLine = MDListLine.create(srcPath, line);
+      const mdLine = MDListLine.fromLine(srcPath, line);
       if (mdLine === undefined) {
         throw parseError(srcPath, "Not a Markdown list line: " + line);
       }
