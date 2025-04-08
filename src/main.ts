@@ -2,7 +2,7 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, RootTask} from "./lib.js"
+import {MDListNode, Tasks} from "./lib.js"
 import {DATE_FORMAT, YMD } from "./datetime";
 import * as datetime from "./datetime.js"
 
@@ -82,7 +82,7 @@ export default class WTCPlugin extends Plugin {
   // Key: root path, Value: epoch time seconds
   latestUpdateTimes: Map<string, number> = new Map();
   // Key: root path, Value: tasks
-  tasksMap: Map<string, lib.RootTask> = new Map();
+  tasksMap: Map<string, lib.Tasks> = new Map();
 
   async showTasks(src: string, el: HTMLElement) {
     await this.collectTasksIfNeeded(src.trim());
@@ -108,21 +108,21 @@ export default class WTCPlugin extends Plugin {
         ? oldTasksUL
         : futureTasksUL;
       // currentYMDの週のタスク一覧があれば生成する
-      const taskWeek = tasks.getTaskWeekByDate(currentYMD);
-      if (taskWeek !== undefined) {
+      const weeklyTasks = tasks.getWeekTasksByFromDate(currentYMD);
+      if (weeklyTasks !== undefined) {
         const weekLI = tgtUL.createEl("li");
-        emphasisIfTrue(taskWeek.range.doesInclude(YMD.today()), weekLI, taskWeek.range.toString(), " (THIS WEEK)");
+        emphasisIfTrue(weeklyTasks[0].doesInclude(YMD.today()), weekLI, weeklyTasks[0].toString(), " (THIS WEEK)");
         const weeklyTaskUL = weekLI.createEl("ul");
-        const skipped = createTaskListHTML(weeklyTaskUL, taskWeek.tasks, true);
+        const skipped = createTaskListHTML(weeklyTaskUL, weeklyTasks[1], true);
         if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
       }
       // currentYMDの日のタスク一覧があれば生成する。なかった場合は日付だけ挿入。
       const dateLI = tgtUL.createEl("li");
       emphasisIfTrue(currentYMD.equals(YMD.today()), dateLI, currentYMD.toString(), " (TODAY)");
-      const taskDay = tasks.getTaskDay(currentYMD);
-      if (taskDay !== undefined) {
+      const dailyTasks = tasks.getDailyTasksByDate(currentYMD);
+      if (dailyTasks !== undefined) {
         const dayUL = dateLI.createEl("ul");
-        const skipped = createTaskListHTML(dayUL, taskDay.tasks, true);
+        const skipped = createTaskListHTML(dayUL, dailyTasks, true);
         if (skipped !== 0) dayUL.createEl("li").textContent = `${skipped} checked tasks`
       }
     }
@@ -156,7 +156,7 @@ export default class WTCPlugin extends Plugin {
     }
 
     const folderStack: TFolder[] = [rootFolder];
-    const taskRoot = new RootTask();
+    const tasks = new Tasks();
     while (folderStack.length > 0) {
       const got = folderStack.pop();
       if (!got) throw "Unreachable";
@@ -168,19 +168,19 @@ export default class WTCPlugin extends Plugin {
           const srcPath = child.path
             .replace(rootPath + "/", "")
             .replace(/\.md$/, "");
-          const taskRootChild = lib.parseContentToTasks(srcPath, content);
-          if (taskRootChild) {
-            for (let malformedMD of taskRootChild.malformedMDs) {
+          const fileTasks = lib.parseContentToTasks(srcPath, content);
+          if (fileTasks) {
+            for (let malformedMD of fileTasks.malformedMDs) {
               console.log(malformedMD);
             }
-            lib.mergeTaskRoots(taskRootChild, taskRoot);
+            tasks.addAll(fileTasks);
           }
         } else {
           throw "Unreachable";
         }
       }
     }
-    this.tasksMap.set(rootPath, taskRoot);
+    this.tasksMap.set(rootPath, tasks);
   }
 
 

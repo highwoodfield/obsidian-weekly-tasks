@@ -150,20 +150,20 @@ class Hunk {
  * @param srcPath
  * @param content
  */
-export function parseContentToTasks(srcPath: string, content: string): RootTask | undefined {
+export function parseContentToTasks(srcPath: string, content: string): Tasks | undefined {
   const hunks = parseContentToListHunks(srcPath, content);
-  const taskRoot = new RootTask();
+  const tasks = new Tasks();
   for (const hunk of hunks) {
     const md = parseListHunkToTree(srcPath, hunk.lines);
-    const childRoot = parseMDRootToTaskRoot(srcPath, md);
+    const hunkTasks = parseMDRootToTaskRoot(srcPath, md);
     // Ignore malformed contents if there are no valid tasks in the hunk.
     // Malformed contents I want are ones in the hunk with some tasks
     // because the malformed contents may be "tasks" in that case.
-    if (childRoot.taskWeeks.length > 0 || childRoot.taskDays.length > 0) {
-      mergeTaskRoots(childRoot, taskRoot);
+    if (hunkTasks.hasValidData()) {
+      tasks.addAll(hunkTasks);
     }
   }
-  return taskRoot.taskWeeks.length > 0 ? taskRoot : undefined;
+  return tasks.hasValidData() ? tasks : undefined;
 }
 
 export function parseContentToListHunks(_srcPath: string, content: string): Hunk[] {
@@ -231,45 +231,80 @@ export function parseListHunkToTree(srcPath: string, rawLines: string[]): MDList
   return root;
 }
 
-/* TODO
-できることなら、もっと内部構造を隠蔽したい。
-あたかも、ある日からある日まで、すべてのエントリを持っているかのような振る舞いをさせたい。
-TaskRoot#addWeeklyTaskみたいな便利メソッドをはやしたいかも。
-
-なぜ?そうすれば、タスクの追加とかやりやすくなるんじゃないか。既存の木に追記しやすいのではないか。
- */
-
-export class RootTask {
-  taskWeeks: WeekTask[] = [];
-  taskDays: DateTask[] = [];
+export class Tasks {
+  private weeklyData: WeeklyData[] = [];
+  private dailyData: DailyData[] = [];
   malformedMDs: MalformedMD[] = [];
 
-  getTaskWeek(range: DateRange) {
-    for (const e of this.taskWeeks) {
-      if (e.range.equals(range)) return e;
+  hasValidData() {
+    return this.weeklyData.length > 0 || this.dailyData.length > 0;
+  }
+
+  getWeekTasksByRange(range: DateRange) {
+    for (const e of this.weeklyData) {
+      if (e.range.equals(range)) return [...e.tasks];
     }
     return undefined;
   }
 
-  getTaskWeekByDate(date: YMD) {
-    for (const e of this.taskWeeks) {
-      if (e.range.from.equals(date)) return e;
+  getWeekTasksByFromDate(date: YMD): [DateRange, MDListNode[]] | undefined {
+    for (const e of this.weeklyData) {
+      if (e.range.from.equals(date)) return [e.range, [...e.tasks]];
     }
     return undefined;
   }
 
-  getTaskDay(tgt: YMD) {
-    for (const e of this.taskDays) {
-      if (e.date.equals(tgt)) return e;
+  getDailyTasksByDate(date: YMD) {
+    for (const e of this.dailyData) {
+      if (e.date.equals(date)) return [...e.tasks];
     }
     return undefined;
+  }
+
+  addWeekTasks(range: DateRange, ...tasks: MDListNode[]) {
+    let tgtData = new WeeklyData(range);
+    let found = false;
+    for (const element of this.weeklyData) {
+      if (element.range.equals(range)) {
+        tgtData = element;
+        found = true;
+      }
+    }
+    tgtData.tasks.push(...tasks);
+    if (!found) {
+      this.weeklyData.push(tgtData);
+    }
+  }
+
+  addDailyTasks(date: YMD, ...tasks: MDListNode[]) {
+    let tgtData = new DailyData(date);
+    let found = false;
+    for (const element of this.dailyData) {
+      if (element.date.equals(date)) {
+        tgtData = element;
+        found = true;
+      }
+    }
+    tgtData.tasks.push(...tasks);
+    if (!found) {
+      this.dailyData.push(tgtData);
+    }
+  }
+
+  addAll(tasks: Tasks) {
+    for (const weeklyDatum of tasks.weeklyData) {
+      this.addWeekTasks(weeklyDatum.range, ...weeklyDatum.tasks);
+    }
+    for (const dailyDatum of tasks.dailyData) {
+      this.addDailyTasks(dailyDatum.date, ...dailyDatum.tasks);
+    }
   }
 
   getEarliestLatestDate(): { earliestYMD: YMD, latestYMD: YMD } | undefined {
     const dates: YMD[] = [];
-    this.taskDays.map(value => value.date)
+    this.dailyData.map(value => value.date)
       .forEach(value => dates.push(value));
-    this.taskWeeks.map(value => value.range)
+    this.weeklyData.map(value => value.range)
       .forEach(value => dates.push(value.from, value.to));
     if (dates.length < 1) {
       return undefined;
@@ -291,19 +326,22 @@ export class RootTask {
   }
 }
 
-export class WeekTask {
+function validateRange(range: DateRange) {
+  if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY || range.to.toDate().getDay() !== WEEK_END_DAY) {
+    throw new Error("Invalid week range: " + range);
+  }
+}
+
+export class WeeklyData {
   range: DateRange;
   tasks: MDListNode[] = [];
 
   constructor(range: DateRange) {
-    if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY || range.to.toDate().getDay() !== WEEK_END_DAY) {
-      throw new Error("Invalid week range: " + range);
-    }
     this.range = range;
   }
 }
 
-export class DateTask {
+export class DailyData {
   date: YMD;
   tasks: MDListNode[] = [];
 
@@ -331,60 +369,30 @@ function parseWeekStr(s: string): DateRange | string {
   }
 }
 
-export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): RootTask {
-  const root = new RootTask();
-  for (const child of mdRoot.children) {
-    const asMoment = moment(child.text, DATE_FORMAT, true);
+export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): Tasks {
+  const tasks = new Tasks();
+  for (const rawDateOrRange of mdRoot.children) {
+    const asMoment = moment(rawDateOrRange.text, DATE_FORMAT, true);
     if (asMoment.isValid()) { // Parse as TaskDay
-      const taskDay = new DateTask(YMD.fromMoment(asMoment));
-      root.taskDays.push(taskDay);
-      taskDay.tasks.push(...child.children);
+      tasks.addDailyTasks(YMD.fromMoment(asMoment), ...rawDateOrRange.children)
     } else { // Parse as TaskWeek
-      const weekRange = parseWeekStr(child.text);
+      const weekRange = parseWeekStr(rawDateOrRange.text);
       if (typeof weekRange === "string") {
         // throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
-        root.malformedMDs.push(new MalformedMD("Invalid range format", child));
+        tasks.malformedMDs.push(new MalformedMD("Invalid range format", rawDateOrRange));
         continue;
       }
-      let taskWeek: WeekTask;
       try {
-        taskWeek = new WeekTask(weekRange);
+        validateRange(weekRange);
       } catch (e) {
         // skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
-        root.malformedMDs.push(new MalformedMD("Invalid week range", child));
+        tasks.malformedMDs.push(new MalformedMD("Invalid week range", rawDateOrRange));
         continue;
       }
-      root.taskWeeks.push(taskWeek);
-      taskWeek.tasks.push(...child.children);
+      tasks.addWeekTasks(weekRange, ...rawDateOrRange.children)
     }
   }
-  return root;
-}
-
-/**
- * Merge two TaskRoots
- *
- * @param from will be merged to 'to'. 'from' itself won't be changed.
- * @param to will be modified. After modified, The range of TaskWeeks in 'to' will be unique.
- */
-export function mergeTaskRoots(from: RootTask, to: RootTask) {
-  to.malformedMDs.push(...from.malformedMDs)
-  for (const fromTaskWeek of from.taskWeeks) {
-    const toTaskWeek = to.getTaskWeek(fromTaskWeek.range);
-    if (toTaskWeek === undefined) {
-      to.taskWeeks.push(fromTaskWeek);
-    } else {
-      toTaskWeek.tasks.push(...fromTaskWeek.tasks);
-    }
-  }
-  for (const fromTaskDay of from.taskDays) {
-    const toTaskDay = to.getTaskDay(fromTaskDay.date);
-    if (toTaskDay === undefined) {
-      to.taskDays.push(fromTaskDay);
-    } else {
-      toTaskDay.tasks.push(...fromTaskDay.tasks);
-    }
-  }
+  return tasks;
 }
 
 function nextDay(date: Date, day: number): Date {
