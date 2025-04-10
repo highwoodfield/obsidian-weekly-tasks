@@ -18,6 +18,7 @@ export class MalformedMD {
   }
 }
 
+// TODO: MDListLine でこのパースも終わらせる
 const REGEX_CHECKBOX = /^\[(.)] (.+)$/
 const CHECKBOX_UNDONE = " "
 
@@ -99,6 +100,7 @@ class MDListLine {
     this.content = content;
   }
 
+  // TODO: '-' が含まれていなければ即 undefined を返すことで多少パフォーマンスが良くなるかもしれない。
   static fromLine(srcPath: string, text: string): MDListLine | undefined {
     const matchWithContent = text.match(REGEX_MD_LIST_WITH_CONTENT);
     if (matchWithContent) {

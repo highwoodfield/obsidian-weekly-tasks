@@ -67,12 +67,21 @@ function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boo
  * @param text
  * @param emphasisText
  */
-function emphasisIfTrue(bool: boolean, e: HTMLElement, text: string, emphasisText: string) {
+function createTextSpan(bool: boolean, text: string, emphasisText: string): HTMLSpanElement {
+  const el = document.createElement("span");
   if (bool) {
-    e.createEl("b").textContent = text + emphasisText;
+    el.createEl("b").textContent = text + " " + emphasisText;
   } else {
-    e.textContent = text;
+    el.textContent = text;
   }
+  return el;
+}
+
+function createTasksUList(tasks: MDListNode[]): HTMLUListElement {
+  const el = document.createElement("ul");
+  const skipped = createTaskListHTML(el, tasks, true);
+  if (skipped !== 0) el.createEl("li").textContent = `${skipped} checked tasks`
+  return el;
 }
 
 // noinspection JSUnusedGlobalSymbols
@@ -104,26 +113,21 @@ export default class WTCPlugin extends Plugin {
     el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
     for (const currentYMD of datetime.genDates(earliestYMD, latestYMD)) {
-      const tgtUL = currentYMD.earlierThan(YMD.fromDate(oldTaskDateBound))
-        ? oldTasksUL
-        : futureTasksUL;
+      const isOld = currentYMD.earlierThan(YMD.fromDate(oldTaskDateBound));
+      const tgtUL = isOld ? oldTasksUL : futureTasksUL;
       // currentYMDの週のタスク一覧があれば生成する
       const weeklyTasks = tasks.getWeeklyTasksByFromDate(currentYMD);
       if (weeklyTasks !== undefined) {
         const weekLI = tgtUL.createEl("li");
-        emphasisIfTrue(weeklyTasks[0].doesInclude(YMD.today()), weekLI, weeklyTasks[0].toString(), " (THIS WEEK)");
-        const weeklyTaskUL = weekLI.createEl("ul");
-        const skipped = createTaskListHTML(weeklyTaskUL, weeklyTasks[1], true);
-        if (skipped !== 0) weeklyTaskUL.createEl("li").textContent = `${skipped} checked tasks`
+        weekLI.append(createTextSpan(weeklyTasks[0].doesInclude(YMD.today()), weeklyTasks[0].toString(), "(THIS WEEK)"));
+        weekLI.append(createTasksUList(weeklyTasks[1]));
       }
       // currentYMDの日のタスク一覧があれば生成する。なかった場合は日付だけ挿入。
       const dateLI = tgtUL.createEl("li");
-      emphasisIfTrue(currentYMD.equals(YMD.today()), dateLI, currentYMD.toString(), " (TODAY)");
+      dateLI.append(createTextSpan(currentYMD.equals(YMD.today()), currentYMD.toString(), "(TODAY)"));
       const dailyTasks = tasks.getDailyTasksByDate(currentYMD);
       if (dailyTasks !== undefined) {
-        const dayUL = dateLI.createEl("ul");
-        const skipped = createTaskListHTML(dayUL, dailyTasks, true);
-        if (skipped !== 0) dayUL.createEl("li").textContent = `${skipped} checked tasks`
+        dateLI.append(createTasksUList(dailyTasks));
       }
     }
 

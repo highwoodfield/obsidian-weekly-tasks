@@ -107,3 +107,8 @@ export class YMD {
     return this.compare(another) > 0;
   }
 }
+
+// 始まる曜日が定まっているDateRange。ちゃんとそのあたり検証してくれるし、あるYMDからWeekを出してくれたりもする。
+class Week {
+
+}
