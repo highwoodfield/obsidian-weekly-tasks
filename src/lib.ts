@@ -28,6 +28,24 @@ export function parseCheckBox(text: string): [check: string, content: string] | 
   return [match[1], match[2]];
 }
 
+export interface MDNodeVisitor<CtxType> {
+  /**
+   * @param node 現在のノード
+   * @param ctx 親から渡されたコンテクスト
+   * @return 子に渡すコンテクストを生成する関数
+   */
+  enter(node: MDListNode, ctx: CtxType): () => CtxType;
+
+  /**
+   *
+   * @param node 現在のノード
+   * @param parentCtx 親から渡されたコンテクスト
+   * @param childrenCtx 子に渡したコンテクスト
+   */
+  exit(node: MDListNode, parentCtx: CtxType, childrenCtx: CtxType[]): void;
+}
+
+// TODO: TaskTreeみたいな名前にするか、そういう名前の新しいクラスを作って、メンバをもっと秘匿したい。
 export class MDListNode {
   parent: MDListNode | undefined;
   srcPath: string;
@@ -48,6 +66,17 @@ export class MDListNode {
       this.text = checkboxInfo[1];
       //console.log(text, this.checkText, this.text);
     }
+  }
+
+  visit<CtxType>(visitor: MDNodeVisitor<CtxType>, ctx: CtxType) {
+    const childrenCtxGenerator = visitor.enter(this, ctx);
+    const childrenCtx: CtxType[] = [];
+    this.children.forEach(value => {
+      const childCtx = childrenCtxGenerator();
+      value.visit(visitor, childCtx);
+      childrenCtx.push(childCtx);
+    });
+    visitor.exit(this, ctx, childrenCtx);
   }
 
   /**

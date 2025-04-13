@@ -2,7 +2,7 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, Tasks} from "./lib.js"
+import {MDListNode, MDNodeVisitor, Tasks} from "./lib.js"
 import {DATE_FORMAT, YMD } from "./datetime";
 import * as datetime from "./datetime.js"
 
@@ -18,46 +18,57 @@ function getEpochTimeMillis(): number {
   return new Date().getTime();
 }
 
+class TaskHTMLGenerator implements MDNodeVisitor<HTMLElement> {
+  enter(node: MDListNode, ctx: HTMLElement): () => HTMLElement {
+    ctx.textContent = node.rawText;
+    return () => document.createElement("li");
+  }
+
+  exit(node: MDListNode, parentCtx: HTMLElement, childrenCtx: HTMLElement[]): void {
+    let ul: HTMLElement | undefined = undefined;
+    childrenCtx.forEach(childCtx => {
+      if (childCtx.hasChildNodes()) {
+        if (ul === undefined) {
+          ul = parentCtx.createEl("ul");
+        }
+        ul.append(childCtx);
+      }
+    })
+  }
+}
+
 /**
  * Returns the number of skipped tasks.
  *
  * @param html
  * @param tasks
- * @param header
+ * @param pathHeader
  */
-function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], header?: boolean): number {
-  if (!header) {
-    for (const taskNode of tasks) {
-      const taskLI = html.createEl("li");
-      taskLI.textContent = taskNode.rawText;
-      if (taskNode.children.length !== 0) {
-        createTaskListHTML(taskLI.createEl("ul"), taskNode.children);
-      }
+function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], pathHeader: boolean = false): number {
+  let skippedTasks = 0;
+  // Make a group of nodes per source path
+  const nodePerPath = new Map<string, MDListNode[]>();
+  for (const task of tasks) {
+    if (task.isAllChecked()){
+      skippedTasks++;
+      continue;
     }
-    return 0;
-  } else {
-    let skippedTasks = 0;
-    // Make a group of nodes per source path
-    const nodePerPath = new Map<string, MDListNode[]>();
-    for (const task of tasks) {
-      if (task.isAllChecked()){
-        skippedTasks++;
-        continue;
-      }
-      const got = nodePerPath.get(task.srcPath)
-      if (got) {
-        got.push(task);
-      } else {
-        nodePerPath.set(task.srcPath, [task]);
-      }
+    const got = nodePerPath.get(task.srcPath)
+    if (got) {
+      got.push(task);
+    } else {
+      nodePerPath.set(task.srcPath, [task]);
     }
-    for (const path of nodePerPath.keys()) {
-      const pathLI = html.createEl("li");
-      pathLI.textContent = path;
-      createTaskListHTML(pathLI.createEl("ul"), nodePerPath.get(path)!);
-    }
-    return skippedTasks;
   }
+  nodePerPath.forEach((samePathTasks, path) => {
+    const pathLI = html.createEl("li");
+    pathLI.textContent = path;
+    const ul = pathLI.createEl("ul");
+    samePathTasks.forEach(task => {
+      task.visit(new TaskHTMLGenerator(), ul.createEl("li"));
+    })
+  })
+  return skippedTasks;
 }
 
 /**
