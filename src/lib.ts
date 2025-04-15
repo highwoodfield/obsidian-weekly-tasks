@@ -14,7 +14,7 @@ export class MalformedMD {
   }
 
   toString() {
-    return `${this.node.srcPath}: Malformed because: ${this.reason}`;
+    return `${this.node.srcFile}: Malformed because: ${this.reason}`;
   }
 }
 
@@ -45,18 +45,34 @@ export interface MDNodeVisitor<CtxType> {
   exit(node: MDListNode, parentCtx: CtxType, childrenCtx: CtxType[]): void;
 }
 
+export class SourceFile {
+  /**
+   * ファイルを開くためのURI
+   */
+  readonly openURI: string;
+  /**
+   * 表示名。収集するパスからの相対パスを想定
+   */
+  readonly displayName: string;
+
+  constructor(openURI: string, displayName: string) {
+    this.openURI = openURI;
+    this.displayName = displayName;
+  }
+}
+
 // TODO: TaskTreeみたいな名前にするか、そういう名前の新しいクラスを作って、メンバをもっと秘匿したい。
 export class MDListNode {
   parent: MDListNode | undefined;
-  srcPath: string;
+  srcFile: SourceFile;
   text: string;
   rawText: string;
   checkText: string | undefined = undefined;
   children: MDListNode[] = [];
 
-  constructor(parent: MDListNode | undefined, srcPath: string, text: string) {
+  constructor(parent: MDListNode | undefined, srcFile: SourceFile, text: string) {
     this.parent = parent;
-    this.srcPath = srcPath;
+    this.srcFile = srcFile;
     this.rawText = text;
     this.text = text;
 
@@ -105,7 +121,7 @@ export class MDListNode {
 
 export class MDListRootNode extends MDListNode {
   constructor() {
-    super(undefined, "ROOT", "ROOT");
+    super(undefined, new SourceFile("ROOT", "ROOT"), "ROOT");
   }
 }
 
@@ -117,33 +133,29 @@ const REGEX_MD_LIST_WITH_CONTENT = /^(\s*)-\s+(.+)$/;
 const REGEX_MD_LIST_EMPTY = /^(\s*)-$/;
 
 class MDListLine {
-  readonly srcPath: string;
+  readonly srcFile: SourceFile;
   readonly rawText: string;
   readonly indentCharLen: number;
   readonly content: string;
 
-  constructor(srcPath: string, rawText: string, indentCharLen: number, content: string) {
-    this.srcPath = srcPath;
+  constructor(srcFile: SourceFile, rawText: string, indentCharLen: number, content: string) {
+    this.srcFile = srcFile;
     this.rawText = rawText;
     this.indentCharLen = indentCharLen;
     this.content = content;
   }
 
   // TODO: '-' が含まれていなければ即 undefined を返すことで多少パフォーマンスが良くなるかもしれない。
-  static fromLine(srcPath: string, text: string): MDListLine | undefined {
+  static fromLine(srcFile: SourceFile, text: string): MDListLine | undefined {
     const matchWithContent = text.match(REGEX_MD_LIST_WITH_CONTENT);
     if (matchWithContent) {
-      return new MDListLine(srcPath, text, matchWithContent[1].length, matchWithContent[2]);
+      return new MDListLine(srcFile, text, matchWithContent[1].length, matchWithContent[2]);
     }
     const matchEmpty = text.match(REGEX_MD_LIST_EMPTY);
     if (matchEmpty) {
-      return new MDListLine(srcPath, text, matchEmpty[1].length, "");
+      return new MDListLine(srcFile, text, matchEmpty[1].length, "");
     }
     return undefined;
-  }
-
-  static isMDListLine(line: string): boolean {
-    return MDListLine.fromLine("", line) !== undefined;
   }
 
   getIndentLevel(step: number) {
@@ -152,7 +164,7 @@ class MDListLine {
   }
 
   toNode() {
-    return new MDListNode(undefined, this.srcPath, this.content);
+    return new MDListNode(undefined, this.srcFile, this.content);
   }
 }
 
@@ -165,8 +177,8 @@ export function getMinimumIndentStep(lines: MDListLine[]) {
   return min === -1 ? 2 : min;
 }
 
-function parseError(path: string, msg: string) {
-  return new Error(path + ": Unable to parse: " + msg);
+function parseError(srcFile: SourceFile, msg: string) {
+  return new Error(srcFile.displayName + ": Unable to parse: " + msg);
 }
 
 class MDListHunk {
@@ -180,15 +192,15 @@ class MDListHunk {
 /**
  * Returns undefined when there is no tasks in the content.
  *
- * @param srcPath
+ * @param srcFile
  * @param content
  */
-export function parseContentToTasks(srcPath: string, content: string): Tasks | undefined {
-  const hunks = parseContentToListHunks(srcPath, content);
+export function parseContentToTasks(srcFile: SourceFile, content: string): Tasks | undefined {
+  const hunks = parseContentToListHunks(srcFile, content);
   const tasks = new Tasks();
   for (const hunk of hunks) {
-    const md = parseListHunkToTree(srcPath, hunk.lines);
-    const hunkTasks = parseMDRootToTaskRoot(srcPath, md);
+    const md = parseListHunkToTree(srcFile, hunk.lines);
+    const hunkTasks = parseMDRootToTaskRoot(md);
     // Ignore malformed contents if there are no valid tasks in the hunk.
     // Malformed contents I want are ones in the hunk with some tasks
     // because the malformed contents may be "tasks" in that case.
@@ -199,11 +211,11 @@ export function parseContentToTasks(srcPath: string, content: string): Tasks | u
   return tasks.hasValidData() ? tasks : undefined;
 }
 
-export function parseContentToListHunks(srcPath: string, content: string): MDListHunk[] {
+export function parseContentToListHunks(srcFile: SourceFile, content: string): MDListHunk[] {
   const buffer: MDListLine[] = []
   const hunks: MDListHunk[] = [];
   for (const line of content.split("\n")) {
-    const mdListLine = MDListLine.fromLine(srcPath, line);
+    const mdListLine = MDListLine.fromLine(srcFile, line);
     // Flush
     if (buffer.length !== 0 && !mdListLine) {
       hunks.push(new MDListHunk(buffer));
@@ -218,7 +230,7 @@ export function parseContentToListHunks(srcPath: string, content: string): MDLis
   return hunks;
 }
 
-export function parseListHunkToTree(srcPath: string, lines: MDListLine[]): MDListNode {
+export function parseListHunkToTree(srcFile: SourceFile, lines: MDListLine[]): MDListNode {
   const indentStep = getMinimumIndentStep(lines);
 
   const root = new MDListRootNode();
@@ -229,10 +241,10 @@ export function parseListHunkToTree(srcPath: string, lines: MDListLine[]): MDLis
 
     const indentLevel = line.getIndentLevel(indentStep);
     if (indentLevel === undefined) {
-      throw parseError(srcPath, "Malformed indentation")
+      throw parseError(srcFile, "Malformed indentation")
     }
     if (indentLevel - lastIndentLevel > 1) {
-      throw parseError(srcPath, "Indent level increased: from " + lastIndentLevel + " to " + indentLevel);
+      throw parseError(srcFile, "Indent level increased: from " + lastIndentLevel + " to " + indentLevel);
     }
 
     if (indentLevel == lastIndentLevel) {
@@ -408,7 +420,7 @@ function parseWeekStr(s: string): DateRange | string {
   }
 }
 
-export function parseMDRootToTaskRoot(_srcPath: string, mdRoot: MDListRootNode): Tasks {
+export function parseMDRootToTaskRoot(mdRoot: MDListRootNode): Tasks {
   const tasks = new Tasks();
   for (const rawDateOrRange of mdRoot.children) {
     const asMoment = moment(rawDateOrRange.text, DATE_FORMAT, true);

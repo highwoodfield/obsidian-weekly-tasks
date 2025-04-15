@@ -2,7 +2,7 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, MDNodeVisitor, Tasks} from "./lib.js"
+import {MDListNode, MDNodeVisitor, SourceFile, Tasks} from "./lib.js"
 import {DATE_FORMAT, YMD } from "./datetime";
 import * as datetime from "./datetime.js"
 
@@ -53,16 +53,19 @@ function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], pathHeader: 
       skippedTasks++;
       continue;
     }
-    const got = nodePerPath.get(task.srcPath)
+    const got = nodePerPath.get(task.srcFile.displayName)
     if (got) {
       got.push(task);
     } else {
-      nodePerPath.set(task.srcPath, [task]);
+      nodePerPath.set(task.srcFile.displayName, [task]);
     }
   }
   nodePerPath.forEach((samePathTasks, path) => {
     const pathLI = html.createEl("li");
-    pathLI.textContent = path;
+    const link = pathLI.createEl("a");
+    link.href = samePathTasks[0].srcFile.openURI;
+    link.textContent = samePathTasks[0].srcFile.displayName;
+    link.className = "obsidian-weekly-tasks-plain-anchor";
     const ul = pathLI.createEl("ul");
     samePathTasks.forEach(task => {
       task.visit(new TaskHTMLGenerator(), ul.createEl("li"));
@@ -93,6 +96,15 @@ function createTasksUList(tasks: MDListNode[]): HTMLUListElement {
   const skipped = createTaskListHTML(el, tasks, true);
   if (skipped !== 0) el.createEl("li").textContent = `${skipped} checked tasks`
   return el;
+}
+
+function tFileToSrcFile(rootPath: string, f: TFile): SourceFile {
+  const displayName = f.path
+    .replace(rootPath + "/", "")
+    .replace(/\.md$/, "");
+  const uri = "obsidian://open?file=" +
+    encodeURIComponent(f.path);
+  return new SourceFile(uri, displayName);
 }
 
 // noinspection JSUnusedGlobalSymbols
@@ -180,10 +192,7 @@ export default class WTCPlugin extends Plugin {
           folderStack.push(child);
         } else if (child instanceof TFile) {
           const content = await this.app.vault.cachedRead(child);
-          const srcPath = child.path
-            .replace(rootPath + "/", "")
-            .replace(/\.md$/, "");
-          const fileTasks = lib.parseContentToTasks(srcPath, content);
+          const fileTasks = lib.parseContentToTasks(tFileToSrcFile(rootPath, child), content);
           if (fileTasks) {
             for (const malformedMD of fileTasks.getMalformedMDs()) {
               console.log(malformedMD);
