@@ -66,6 +66,12 @@ export class YMD {
     return this.fromDate(new Date());
   }
 
+  static fromString(s: string): YMD | undefined {
+    const m = moment(s, DATE_FORMAT, true);
+    if (!m.isValid()) return undefined;
+    return YMD.fromMoment(m);
+  }
+
   static fromMoment(m: moment.Moment) {
     return this.fromDate(m.toDate());
   }

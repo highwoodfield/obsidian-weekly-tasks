@@ -227,6 +227,9 @@ export default class WTCPlugin extends Plugin {
     this.addRibbonIcon("list-todo", "Insert a template for weekly tasks", () => {
       new TemplateInsertionModal(this.app).open();
     });
+    this.addRibbonIcon("calendar-range", "Insert a template for regular tasks", () => {
+      new RegularTaskInsertionModal(this.app).open();
+    })
   }
 
   onunload() {
@@ -279,13 +282,93 @@ class TemplateInsertionModal extends Modal {
   }
 
   async insertText() {
-    const fromMmt = moment(this.from, DATE_FORMAT);
-    const toMmt = moment(this.to, DATE_FORMAT);
-    if (!fromMmt.isValid() || !toMmt.isValid()) {
+    const from = YMD.fromString(this.from!);
+    const to = YMD.fromString(this.to!);
+    if (!from || !to) {
       new Notice("Invalid format");
       return;
     }
-    const text = lib.generateTaskListTemplate(fromMmt.toDate(), toMmt.toDate());
+    const text = lib.generateTaskListTemplate(from, to);
+    const activeFile = this.app.workspace.getActiveFile();
+    if (activeFile === null) return;
+    await this.app.vault.append(activeFile, text);
+  }
+
+  onClose() {
+    const {contentEl} = this;
+    contentEl.empty();
+  }
+}
+
+function noticeIfUndefined(obj: any | undefined, msg: string) {
+  if (obj) return;
+  new Notice(msg);
+}
+
+class RegularTaskInsertionModal extends Modal {
+  from: YMD | undefined = undefined;
+  to: YMD | undefined = undefined;
+  day: number | undefined = undefined;
+  taskMD: string = "";
+
+  constructor(app: App) {
+    super(app);
+  }
+
+  onOpen() {
+    const {contentEl} = this;
+    new Setting(contentEl)
+      .setName("From")
+      .addMomentFormat(component => {
+        component.setDefaultFormat(DATE_FORMAT)
+          .onChange(value => {
+            this.from = YMD.fromString(value);
+            noticeIfUndefined(this.from, "invalid: " + value);
+          })
+      })
+    new Setting(contentEl)
+      .setName("To")
+      .addMomentFormat(component => {
+        component.setDefaultFormat(DATE_FORMAT)
+          .onChange(value => {
+            this.to = YMD.fromString(value);
+            noticeIfUndefined(this.to, "invalid: " + value);
+          })
+      })
+    new Setting(contentEl)
+      .setName("曜日")
+      .addDropdown(component => {
+        ["日", "月", "火", "水", "木", "金", "土"].forEach((value, index) => {
+          component.addOption(index.toString(), value);
+        });
+        component.onChange(value => {
+          this.day = Number.parseInt(value);
+        })
+      })
+    new Setting(contentEl)
+      .setName("タスク(Markdown)")
+      .addTextArea(component => {
+        component.onChange(value => this.taskMD = value);
+      })
+    new Setting(contentEl)
+      .addButton(component => {
+        component.setButtonText("OK")
+          .onClick(async () => {
+            this.close();
+            await this.insertText();
+          });
+      })
+  }
+
+  async insertText() {
+    let text = "\n\n";
+    for (const d of datetime.genDates(this.from!, this.to!)) {
+      if (d.toDate().getDay() !== this.day!) continue;
+      text += "- " + d.toString() + "\n";
+      this.taskMD.split("\n").forEach(value => {
+        text += "    " + value + "\n";
+      })
+    }
     const activeFile = this.app.workspace.getActiveFile();
     if (activeFile === null) return;
     await this.app.vault.append(activeFile, text);

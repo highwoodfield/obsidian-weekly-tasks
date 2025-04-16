@@ -231,9 +231,9 @@ function nextDay(date: Date, day: number): Date {
   return copyDate;
 }
 
-export function generateTaskListTemplate(from: Date, to: Date) {
+export function generateTaskListTemplate(from: YMD, to: YMD) {
   let output: string = "";
-  for (const currentYMD of genDates(YMD.fromDate(from), YMD.fromDate(to))) {
+  for (const currentYMD of genDates(from, to)) {
     const currentDate = currentYMD.toDate();
     if (currentDate.getDay() === WEEK_BEGIN_DAY) {
       const end = nextDay(currentDate, WEEK_END_DAY);
