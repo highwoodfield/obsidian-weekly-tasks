@@ -66,14 +66,12 @@ export class MDListNode {
   parent: MDListNode | undefined;
   srcFile: SourceFile;
   text: string;
-  rawText: string;
   checkText: string | undefined = undefined;
   children: MDListNode[] = [];
 
   constructor(parent: MDListNode | undefined, srcFile: SourceFile, text: string) {
     this.parent = parent;
     this.srcFile = srcFile;
-    this.rawText = text;
     this.text = text;
 
     const checkboxInfo = parseCheckBox(text);
@@ -82,6 +80,10 @@ export class MDListNode {
       this.text = checkboxInfo[1];
       //console.log(text, this.checkText, this.text);
     }
+  }
+
+  get rawText(): string {
+    return `[${this.checkText}] ${this.text}`;
   }
 
   visit<CtxType>(visitor: MDNodeVisitor<CtxType>, ctx: CtxType) {
