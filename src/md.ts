@@ -123,6 +123,12 @@ export class MDListNode {
       return this.checkText !== undefined && this.checkText !== CHECKBOX_UNDONE;
     }
   }
+
+  generateMarkdown(initialIndentLevel: number): string {
+    const generator = new MarkdownGenerator();
+    this.visit(generator, initialIndentLevel);
+    return generator.getMarkdown();
+  }
 }
 
 export class MDListRootNode extends MDListNode {
@@ -146,6 +152,30 @@ export interface MDNodeVisitor<CtxType> {
    * @param childrenCtx 子に渡したコンテクスト
    */
   exit(node: MDListNode, parentCtx: CtxType, childrenCtx: CtxType[]): void;
+}
+
+type IndentLevel = number;
+
+class MarkdownGenerator implements MDNodeVisitor<IndentLevel> {
+  private markdown: string = "";
+
+  getMarkdown() {
+    return this.markdown;
+  }
+
+  enter(node: MDListNode, ctx: IndentLevel): () => IndentLevel {
+    for (let i = 0; i < ctx; i++) {
+      this.markdown += "  ";
+    }
+    this.markdown += "- " + node.rawText + "\n";
+    return function () {
+      return ctx + 1;
+    };
+  }
+
+  exit(node: MDListNode, parentCtx: IndentLevel, childrenCtx: IndentLevel[]): void {
+    // no-op
+  }
 }
 
 
