@@ -2,9 +2,10 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {MDListNode, MDNodeVisitor, SourceFile, Tasks} from "./lib.js"
+import {Tasks} from "./lib.js"
 import {DATE_FORMAT, YMD } from "./datetime";
 import * as datetime from "./datetime.js"
+import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
 interface WTCSettings {
   mySetting: string;
