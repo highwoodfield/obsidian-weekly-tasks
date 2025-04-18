@@ -87,7 +87,9 @@ export class MDListNode {
   }
 
   get rawText(): string {
-    return `[${this.checkText}] ${this.text}`;
+    return this.checkText
+      ? `[${this.checkText}] ${this.text}`
+      : this.text;
   }
 
   visit<CtxType>(visitor: MDNodeVisitor<CtxType>, ctx: CtxType) {
