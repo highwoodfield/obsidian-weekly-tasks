@@ -1,4 +1,7 @@
-import moment from "moment/moment";
+import moment from "moment/moment.js";
+
+const WEEK_BEGIN_DAY = 1; // 1 for monday
+const WEEK_END_DAY = 0; // 0 for monday
 
 export function toEpochDate(date: YMD): number {
   return Math.floor(date.toDate().getTime() / (24 * 60 * 60 * 1000));
@@ -17,6 +20,25 @@ export class DateRange {
     }
     this.from = from;
     this.to = to;
+  }
+
+  static fromString(s: string): DateRange | string {
+    const dates: YMD[] = [];
+    for (const rawDate of s.split(DATE_RANGE_DELIMITER)) {
+      const m = moment(rawDate, DATE_FORMAT);
+      if (!m.isValid()) {
+        return "Invalid date format";
+      }
+      dates.push(YMD.fromMoment(m));
+    }
+    if (dates.length !== 2) {
+      return "Invalid length of data: " + dates.length;
+    }
+    try {
+      return new DateRange(dates[0], dates[1]);
+    } catch (e) {
+      return "Invalid range";
+    }
   }
 
   doesInclude(tgt: YMD | DateRange): boolean {
@@ -80,6 +102,12 @@ export class YMD {
     return new YMD(m.getFullYear(), m.getMonth() + 1, m.getDate());
   }
 
+  plusDays(days: number): YMD {
+    const d = this.toDate();
+    d.setDate(d.getDate() + days);
+    return YMD.fromDate(d);
+  }
+
   toDate() {
     return new Date(this.year, this.month - 1, this.day);
   }
@@ -114,7 +142,43 @@ export class YMD {
   }
 }
 
-// 始まる曜日が定まっているDateRange。ちゃんとそのあたり検証してくれるし、あるYMDからWeekを出してくれたりもする。
-class Week {
 
+// 始まる曜日が定まっているDateRange。ちゃんとそのあたり検証してくれるし、あるYMDからWeekを出してくれたりもする。
+export class Week {
+  readonly range: DateRange;
+
+  constructor(range: DateRange) {
+    if (!Week.isWeekRange(range)) {
+      throw new Error("Illegal range: " + range.toString())
+    }
+    this.range = range;
+  }
+
+  static fromYMD(date: YMD) {
+    let beginOfWeekDate = date.toDate();
+    while (beginOfWeekDate.getDay() !== WEEK_BEGIN_DAY) {
+      beginOfWeekDate.setDate(beginOfWeekDate.getDate() - 1);
+    }
+    const beginOfWeek = YMD.fromDate(beginOfWeekDate);
+    const endOfWeek = beginOfWeek.plusDays(6);
+    return new Week(new DateRange(beginOfWeek, endOfWeek));
+  }
+
+  static isBeginOfWeek(date: YMD) {
+    return date.toDate().getDay() === WEEK_BEGIN_DAY;
+  }
+
+  static fromRange(range: DateRange): Week | undefined {
+    return this.isWeekRange(range)
+      ? new Week(range)
+      : undefined;
+  }
+
+  static isWeekRange(range: DateRange) {
+    if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY) {
+      return false;
+    }
+    const endOfWeek = range.from.plusDays(6);
+    return range.to.equals(endOfWeek);
+  }
 }

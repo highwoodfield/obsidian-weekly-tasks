@@ -1,10 +1,8 @@
 import moment from "moment";
-import {DATE_FORMAT, DATE_RANGE_DELIMITER, DateRange, genDates, YMD} from "./datetime";
+import {DateRange, genDates, Week, YMD} from "./datetime";
 import * as md from "./md";
 import {MDListNode, MDListRootNode, SourceFile} from "./md";
 
-const WEEK_BEGIN_DAY = 1; // 1 for monday
-const WEEK_END_DAY = 0; // 0 for monday
 
 export class MalformedMD {
   reason: string;
@@ -154,12 +152,6 @@ export class Tasks {
   }
 }
 
-function validateRange(range: DateRange) {
-  if (range.from.toDate().getDay() !== WEEK_BEGIN_DAY || range.to.toDate().getDay() !== WEEK_END_DAY) {
-    throw new Error("Invalid week range: " + range);
-  }
-}
-
 class WeeklyData {
   range: DateRange;
   tasks: MDListNode[] = [];
@@ -178,42 +170,20 @@ class DailyData {
   }
 }
 
-function parseWeekStr(s: string): DateRange | string {
-  const dates: YMD[] = [];
-  for (const rawDate of s.split(DATE_RANGE_DELIMITER)) {
-    const m = moment(rawDate, DATE_FORMAT);
-    if (!m.isValid()) {
-      return "Invalid date format";
-    }
-    dates.push(YMD.fromMoment(m));
-  }
-  if (dates.length !== 2) {
-    return "Invalid length of data: " + dates.length;
-  }
-  try {
-    return new DateRange(dates[0], dates[1]);
-  } catch (e) {
-    return "Invalid range";
-  }
-}
-
 export function parseMDRootToTaskRoot(mdRoot: MDListRootNode): Tasks {
   const tasks = new Tasks();
   for (const rawDateOrRange of mdRoot.children) {
-    const asMoment = moment(rawDateOrRange.text, DATE_FORMAT, true);
-    if (asMoment.isValid()) { // Parse as TaskDay
-      tasks.addDailyTasks(YMD.fromMoment(asMoment), ...rawDateOrRange.children)
+    const asYMD = YMD.fromString(rawDateOrRange.text)
+    if (asYMD) { // Parse as TaskDay
+      tasks.addDailyTasks(asYMD, ...rawDateOrRange.children)
     } else { // Parse as TaskWeek
-      const weekRange = parseWeekStr(rawDateOrRange.text);
+      const weekRange = DateRange.fromString(rawDateOrRange.text);
       if (typeof weekRange === "string") {
         // throw parseError(srcPath, "Invalid week: " + weekMD.text + " (" + weekRange + ")").toString();
         tasks.addMalformedMDs(new MalformedMD("Invalid range format", rawDateOrRange));
         continue;
       }
-      try {
-        validateRange(weekRange);
-      } catch (e) {
-        // skipped =  parseError(srcPath, "Invalid week: " + weekMD.text).toString();
+      if (!Week.isWeekRange(weekRange)) {
         tasks.addMalformedMDs(new MalformedMD("Invalid week range", rawDateOrRange));
         continue;
       }
@@ -223,24 +193,14 @@ export function parseMDRootToTaskRoot(mdRoot: MDListRootNode): Tasks {
   return tasks;
 }
 
-function nextDay(date: Date, day: number): Date {
-  const copyDate = new Date(date);
-  while (copyDate.getDay() !== day) {
-    copyDate.setDate(copyDate.getDate() + 1);
-  }
-  return copyDate;
-}
-
 export function generateTaskListTemplate(from: YMD, to: YMD) {
   let output: string = "";
   for (const currentYMD of genDates(from, to)) {
-    const currentDate = currentYMD.toDate();
-    if (currentDate.getDay() === WEEK_BEGIN_DAY) {
-      const end = nextDay(currentDate, WEEK_END_DAY);
-      output = output.concat("- " + moment(currentDate).format(DATE_FORMAT) +
-        DATE_RANGE_DELIMITER + moment(end).format(DATE_FORMAT) + "\n");
+    if (Week.isBeginOfWeek(currentYMD)) {
+      const week = Week.fromYMD(currentYMD);
+      output = output.concat("- " + week.range.toString() + "\n");
     }
-    output = output.concat("- " + moment(currentDate).format(DATE_FORMAT) + "\n");
+    output = output.concat("- " + currentYMD.toString() + "\n");
   }
   return output;
 }
