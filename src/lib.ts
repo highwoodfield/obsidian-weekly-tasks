@@ -1,8 +1,7 @@
 import moment from "moment";
-import {DateRange, genDates, Week, YMD} from "./datetime";
-import * as md from "./md";
-import {MDListNode, MDListRootNode, SourceFile} from "./md";
-
+import {DateRange, genDates, Temporal, Week, YMD} from "./datetime.js";
+import * as md from "./md.js";
+import {MDListNode, MDListRootNode, SourceFile} from "./md.js";
 
 export class MalformedMD {
   reason: string;
@@ -174,8 +173,10 @@ export function parseMDRootToTaskRoot(mdRoot: MDListRootNode): Tasks {
   const tasks = new Tasks();
   for (const rawDateOrRange of mdRoot.children) {
     const asYMD = YMD.fromString(rawDateOrRange.text)
+    let temporal: Temporal;
     if (asYMD) { // Parse as TaskDay
       tasks.addDailyTasks(asYMD, ...rawDateOrRange.children)
+      temporal = asYMD;
     } else { // Parse as TaskWeek
       const weekRange = DateRange.fromString(rawDateOrRange.text);
       if (typeof weekRange === "string") {
@@ -188,6 +189,7 @@ export function parseMDRootToTaskRoot(mdRoot: MDListRootNode): Tasks {
         continue;
       }
       tasks.addWeekTasks(weekRange, ...rawDateOrRange.children)
+      temporal = weekRange;
     }
   }
   return tasks;
@@ -203,4 +205,93 @@ export function generateTaskListTemplate(from: YMD, to: YMD) {
     output = output.concat("- " + currentYMD.toString() + "\n");
   }
   return output;
+}
+
+export interface Task {
+  temporal: Temporal;
+  task: MDListNode;
+}
+
+export abstract class Node {
+  parent: Node | undefined;
+  children: Node[] = [];
+
+  constructor(parent: Node | undefined) {
+    this.parent = parent;
+  }
+
+  abstract addTask(task: Task): void;
+}
+
+export class RootNode extends Node {
+  children: TemporalNode[] = [];
+
+  addTask(task: Task): void {
+    let found = this.children.find(value => {
+      return value.temporal.equals(task.temporal);
+    })
+    if (!found) {
+      found = new TemporalNode(this, task.temporal);
+      this.children.push(found);
+    }
+    found.addTask(task);
+  }
+}
+
+export class TemporalNode extends Node {
+  temporal: Temporal;
+  children: SourceNode[] = [];
+
+  constructor(parent: Node | undefined, temporal: Temporal) {
+    super(parent);
+    this.temporal = temporal;
+  }
+
+  addTask(task: Task): void {
+    if (!this.temporal.equals(task.temporal)) {
+      throw new Error("Illegal temporal: " + task.temporal);
+    }
+    let found = this.children.find(value => {
+      return value.source.equals(task.task.srcFile);
+    })
+    if (!found) {
+      found = new SourceNode(this, task.task.srcFile);
+      this.children.push(found);
+    }
+    found.addTask(task);
+  }
+
+  compare(another: TemporalNode): number {
+    return another.temporal.compareTemporal(another.temporal)
+  }
+}
+
+export class SourceNode extends Node {
+  source: SourceFile;
+  children: TaskNode[] = [];
+
+  constructor(parent: Node | undefined, source: SourceFile) {
+    super(parent);
+    this.source = source;
+  }
+
+  addTask(task: Task): void {
+    if (!task.task.srcFile.equals(this.source)) {
+      throw new Error("Illegal source file: " + task.task.srcFile);
+    }
+    this.children.push(new TaskNode(this, task));
+  }
+}
+
+export class TaskNode extends Node {
+  task: Task;
+
+  constructor(parent: Node | undefined, task: Task) {
+    super(parent);
+    this.task = task;
+  }
+
+  addTask(task: Task): void {
+    throw new Error("no-op");
+  }
 }

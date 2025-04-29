@@ -10,11 +10,21 @@ export function toEpochDate(date: YMD): number {
 export const DATE_RANGE_DELIMITER = " ~ ";
 export const DATE_FORMAT = "YYYY/MM/DD"
 
-export class DateRange {
+export abstract class Temporal {
+  abstract getDate(): YMD;
+  abstract equals(another: Temporal): boolean;
+  abstract toString(): string;
+  compareTemporal(another: Temporal): number {
+    return this.getDate().compare(another.getDate());
+  }
+}
+
+export class DateRange extends Temporal {
   from: YMD;
   to: YMD;
 
   constructor(from: YMD, to: YMD) {
+    super();
     if (toEpochDate(from) > toEpochDate(to)) {
       throw new Error(`Invalid date range (from: ${from}, to: ${to})`);
     }
@@ -50,7 +60,14 @@ export class DateRange {
     }
   }
 
-  equals(another: DateRange): boolean {
+  getDate(): YMD {
+    return this.from;
+  }
+
+  equals(another: Temporal): boolean {
+    if (!(another instanceof DateRange)) {
+      return false;
+    }
     return this.from.equals(another.from) && this.to.equals(another.to);
   }
 
@@ -73,12 +90,13 @@ export function* genDates(from: YMD, to: YMD) {
 /**
  * Local Time Zone.
  */
-export class YMD {
+export class YMD extends Temporal {
   year: number;
   month: number;
   day: number;
 
   constructor(year: number, month: number, day: number) {
+    super();
     this.year = year;
     this.month = month;
     this.day = day;
@@ -112,6 +130,10 @@ export class YMD {
     return new Date(this.year, this.month - 1, this.day);
   }
 
+  getDate(): YMD {
+    return this;
+  }
+
   toString() {
     return moment(this.toDate()).format(DATE_FORMAT);
   }
@@ -129,7 +151,10 @@ export class YMD {
     return this.day - another.day;
   }
 
-  equals(another: YMD): boolean {
+  equals(another: Temporal): boolean {
+    if (!(another instanceof YMD)) {
+      return false;
+    }
     return this.year === another.year && this.month === another.month && this.day === another.day;
   }
 

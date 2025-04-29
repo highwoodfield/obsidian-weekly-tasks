@@ -63,6 +63,10 @@ export class SourceFile {
     this.openURI = openURI;
     this.displayName = displayName;
   }
+
+  equals(another: SourceFile) {
+    return another.openURI === this.openURI && another.displayName === this.displayName;
+  }
 }
 
 // TODO: TaskTreeみたいな名前にするか、そういう名前の新しいクラスを作って、メンバをもっと秘匿したい。
