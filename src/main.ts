@@ -1,7 +1,7 @@
 import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 
 import * as lib from "./lib.js"
-import {RootNode, Node} from "./lib.js"
+import {RootNode, Node, Task} from "./lib.js"
 import {DATE_FORMAT, DateRange, Temporal, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
@@ -135,39 +135,55 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
   exit(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
     switch (node.type) {
       case "Root":
-        for (const childCtx of childrenCtx) {
-          const tgtUL = (childCtx as TemporalCtx).isOld ? this.oldTasksUL : this.futureTasksUL;
-          tgtUL.append(childCtx.li!);
-        }
+        this.exitRoot(node, ctx, childrenCtx as TemporalCtx[]);
         break;
       case "Temporal":
-        const temporal = (node as lib.TemporalNode).temporal;
-        (ctx as TemporalCtx).isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
-        const temporalLI = ctx.li!
-        if (temporal instanceof YMD) {
-          temporalLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
-        } else if (temporal instanceof DateRange) {
-          temporalLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
-        }
-        temporalLI.createEl("ul").append(...childrenCtx.map(v => v.li!));
+        this.exitTemporal(node as lib.TemporalNode, ctx as TemporalCtx, childrenCtx);
         break;
       case "Source":
-        const pathLI = ctx.li!
-        const link = pathLI.createEl("a");
-        const source = (node as lib.SourceNode).source;
-        link.href = source.openURI;
-        link.textContent = source.displayName;
-        link.className = "obsidian-weekly-tasks-plain-anchor";
-
-        const pathUL = pathLI.createEl("ul");
-        pathUL.append(...childrenCtx.filter(v => !v.isSkipped).map(v => v.li!));
-
-        const skipped = childrenCtx.filter(value => value.isSkipped).length;
-        if (skipped !== 0) {
-          pathUL.createEl("li").textContent = `${skipped} checked tasks`
-        }
+        this.exitSource(node as lib.SourceNode, ctx, childrenCtx);
         break;
     }
+  }
+
+  exitRoot(node: Node, ctx: TaskVisitCtx, childrenCtx: TemporalCtx[]): void {
+    for (const childCtx of childrenCtx) {
+      const tgtUL = childCtx.isOld ? this.oldTasksUL : this.futureTasksUL;
+      tgtUL.append(childCtx.li!);
+    }
+  }
+
+  exitTemporal(node: lib.TemporalNode, ctx: TemporalCtx, childrenCtx: TaskVisitCtx[]): void {
+    const temporal = node.temporal;
+    (ctx as TemporalCtx).isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
+    const temporalLI = ctx.li!
+    if (temporal instanceof YMD) {
+      temporalLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
+    } else if (temporal instanceof DateRange) {
+      temporalLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
+    }
+    temporalLI.createEl("ul").append(...childrenCtx.map(v => v.li!));
+  }
+
+  exitSource(node: lib.SourceNode, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
+    const pathLI = ctx.li!
+    const link = pathLI.createEl("a");
+    const source = node.source;
+    link.href = source.openURI;
+    link.textContent = source.displayName;
+    link.className = "obsidian-weekly-tasks-plain-anchor";
+
+    const pathUL = pathLI.createEl("ul");
+    pathUL.append(...childrenCtx.filter(v => !v.isSkipped).map(v => v.li!));
+
+    const skipped = childrenCtx.filter(value => value.isSkipped).length;
+    if (skipped !== 0) {
+      pathUL.createEl("li").textContent = `${skipped} checked tasks`
+    }
+  }
+
+  exitTask(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
+
   }
 }
 
