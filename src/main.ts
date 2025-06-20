@@ -85,18 +85,17 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
   enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
     switch (node.type) {
           case "Temporal":
-            return this.enterTemporal(node, ctx);
+            return this.enterTemporal(node as lib.TemporalNode, ctx);
           case "Source":
-            return this.enterSource(node, ctx);
+            return this.enterSource(node as lib.SourceNode, ctx);
           case "Task":
-            return this.enterTask(node, ctx);
+            return this.enterTask(node as lib.TaskNode, ctx);
         }
         return () => TaskVisitCtx.EMPTY;
   }
 
-  enterTemporal(node: Node, _ctx: TaskVisitCtx): () => TaskVisitCtx {
-    const tNode = node as lib.TemporalNode;
-    const temporal = tNode.temporal;
+  enterTemporal(node: lib.TemporalNode, _ctx: TaskVisitCtx): () => TaskVisitCtx {
+    const temporal = node.temporal;
     const isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
     const tgtUL = isOld ? this.oldTasksUL : this.futureTasksUL;
     const tgtLI = tgtUL.createEl("li");
@@ -109,22 +108,20 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     return () => childCtx;
   }
 
-  enterSource(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
-    const sNode = node as lib.SourceNode;
+  enterSource(node: lib.SourceNode, ctx: TaskVisitCtx): () => TaskVisitCtx {
     const pathLI = ctx.el!.createEl("li");
     const link = pathLI.createEl("a");
-    link.href = sNode.source.openURI;
-    link.textContent = sNode.source.displayName;
+    link.href = node.source.openURI;
+    link.textContent = node.source.displayName;
     link.className = "obsidian-weekly-tasks-plain-anchor";
     const childUL = pathLI.createEl("ul");
     return () => new TaskVisitCtx(childUL, false);
   }
-  enterTask(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
-    const taskNode = node as lib.TaskNode;
-    if (taskNode.task.task.isAllChecked()) {
+  enterTask(node: lib.TaskNode, ctx: TaskVisitCtx): () => TaskVisitCtx {
+    if (node.task.task.isAllChecked()) {
       ctx.skipped = true;
     } else {
-      taskNode.task.task.visit(new TaskHTMLGenerator(), ctx.el!.createEl("li"));
+      node.task.task.visit(new TaskHTMLGenerator(), ctx.el!.createEl("li"));
     }
     // empty context because TaskNode doesn't have children
     return () => TaskVisitCtx.EMPTY;
