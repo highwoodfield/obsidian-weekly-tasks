@@ -1,7 +1,7 @@
 import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 
 import * as lib from "./lib.js"
-import {RootNode, NodeVisitor, Node} from "./lib.js"
+import {RootNode, Node} from "./lib.js"
 import {DATE_FORMAT, DateRange, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
@@ -84,43 +84,50 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
   }
   enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
     switch (node.type) {
-          case "Root":
-            break;
           case "Temporal":
-            const tNode = node as lib.TemporalNode;
-            const temporal = tNode.temporal;
-            const isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
-            const tgtUL = isOld ? this.oldTasksUL : this.futureTasksUL;
-            const tgtLI = tgtUL.createEl("li");
-            if (temporal instanceof YMD) {
-              tgtLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
-            } else if (temporal instanceof DateRange) {
-              tgtLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
-            }
-            const childCtx = new TaskVisitCtx(tgtLI.createEl("ul"));
-            return () => childCtx;
+            return this.enterTemporal(node, ctx);
           case "Source":
-            const sNode = node as lib.SourceNode;
-            const pathLI = ctx.el!.createEl("li");
-            const link = pathLI.createEl("a");
-            link.href = sNode.source.openURI;
-            link.textContent = sNode.source.displayName;
-            link.className = "obsidian-weekly-tasks-plain-anchor";
-            const childUL = pathLI.createEl("ul");
-            return () => new TaskVisitCtx(childUL, false);
+            return this.enterSource(node, ctx);
           case "Task":
-            const taskNode = node as lib.TaskNode;
-            if (taskNode.task.task.isAllChecked()) {
-              ctx.skipped = true;
-            } else {
-              taskNode.task.task.visit(new TaskHTMLGenerator(), ctx.el!.createEl("li"));
-            }
-            // empty context because TaskNode doesn't have children
-            return () => TaskVisitCtx.EMPTY;
+            return this.enterTask(node, ctx);
         }
-        return function () {
-          return ctx;
-        };
+        return () => TaskVisitCtx.EMPTY;
+  }
+
+  enterTemporal(node: Node, _ctx: TaskVisitCtx): () => TaskVisitCtx {
+    const tNode = node as lib.TemporalNode;
+    const temporal = tNode.temporal;
+    const isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
+    const tgtUL = isOld ? this.oldTasksUL : this.futureTasksUL;
+    const tgtLI = tgtUL.createEl("li");
+    if (temporal instanceof YMD) {
+      tgtLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
+    } else if (temporal instanceof DateRange) {
+      tgtLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
+    }
+    const childCtx = new TaskVisitCtx(tgtLI.createEl("ul"));
+    return () => childCtx;
+  }
+
+  enterSource(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
+    const sNode = node as lib.SourceNode;
+    const pathLI = ctx.el!.createEl("li");
+    const link = pathLI.createEl("a");
+    link.href = sNode.source.openURI;
+    link.textContent = sNode.source.displayName;
+    link.className = "obsidian-weekly-tasks-plain-anchor";
+    const childUL = pathLI.createEl("ul");
+    return () => new TaskVisitCtx(childUL, false);
+  }
+  enterTask(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
+    const taskNode = node as lib.TaskNode;
+    if (taskNode.task.task.isAllChecked()) {
+      ctx.skipped = true;
+    } else {
+      taskNode.task.task.visit(new TaskHTMLGenerator(), ctx.el!.createEl("li"));
+    }
+    // empty context because TaskNode doesn't have children
+    return () => TaskVisitCtx.EMPTY;
   }
 
   exit(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
@@ -131,7 +138,6 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
       }
     }
   }
-
 }
 
 // noinspection JSUnusedGlobalSymbols
