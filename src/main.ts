@@ -2,7 +2,7 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 
 import * as lib from "./lib.js"
 import {RootNode, Node} from "./lib.js"
-import {DATE_FORMAT, DateRange, Temporal, Week, YMD} from "./datetime";
+import {DATE_FORMAT, DateRange, Temporal, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
@@ -213,7 +213,7 @@ export default class WTCPlugin extends Plugin {
     console.debug("Update", rootPaths);
 
     const rootFolders = rootPaths
-      .map(this.app.vault.getFolderByPath)
+      .map(value => this.app.vault.getFolderByPath(value))
       .filter(value => value !== null)
       .map(value => value!);
     if (rootFolders.length !== rootPaths.length) {
@@ -251,7 +251,10 @@ export default class WTCPlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor("weekly-task-collect", async (src, el) => {
       try {
         const before = getEpochTimeMillis();
-        await this.showTasks(src.split("\n").map(value => value.trim()), el);
+        const paths = src.split("\n")
+          .map(value => value.trim())
+          .filter(value => value !== "");
+        await this.showTasks(paths, el);
         const after = getEpochTimeMillis();
         console.debug("showTasks() took " + (after - before) + " ms");
       } catch (e) {
