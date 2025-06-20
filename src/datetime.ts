@@ -141,7 +141,7 @@ export class YMD extends Temporal {
   /**
    *
    * @param another
-   * @return positive value if this object is later than another. Negative if earlier. Zero if equal
+   * @return positive value if "this" is later than another. Negative if earlier. Zero if equal
    */
   compare(another: YMD): number {
     const y = this.year - another.year;

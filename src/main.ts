@@ -1,9 +1,8 @@
 import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
-import moment from 'moment';
 
 import * as lib from "./lib.js"
-import {Tasks} from "./lib.js"
-import {DATE_FORMAT, YMD } from "./datetime";
+import {RootNode, NodeVisitor, Node} from "./lib.js"
+import {DATE_FORMAT, DateRange, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
@@ -37,48 +36,9 @@ class TaskHTMLGenerator implements MDNodeVisitor<HTMLElement> {
     })
   }
 }
-
-/**
- * Returns the number of skipped tasks.
- *
- * @param html
- * @param tasks
- * @param pathHeader
- */
-function createTaskListHTML(html: HTMLElement, tasks: MDListNode[], pathHeader: boolean = false): number {
-  let skippedTasks = 0;
-  // Make a group of nodes per source path
-  const nodePerPath = new Map<string, MDListNode[]>();
-  for (const task of tasks) {
-    if (task.isAllChecked()){
-      skippedTasks++;
-      continue;
-    }
-    const got = nodePerPath.get(task.srcFile.displayName)
-    if (got) {
-      got.push(task);
-    } else {
-      nodePerPath.set(task.srcFile.displayName, [task]);
-    }
-  }
-  nodePerPath.forEach((samePathTasks, path) => {
-    const pathLI = html.createEl("li");
-    const link = pathLI.createEl("a");
-    link.href = samePathTasks[0].srcFile.openURI;
-    link.textContent = samePathTasks[0].srcFile.displayName;
-    link.className = "obsidian-weekly-tasks-plain-anchor";
-    const ul = pathLI.createEl("ul");
-    samePathTasks.forEach(task => {
-      task.visit(new TaskHTMLGenerator(), ul.createEl("li"));
-    })
-  })
-  return skippedTasks;
-}
-
 /**
  * boolがtrueならe.textContentを<b>にしてかつemphasisTextをくっつける
  * @param bool
- * @param e
  * @param text
  * @param emphasisText
  */
@@ -92,13 +52,6 @@ function createTextSpan(bool: boolean, text: string, emphasisText: string): HTML
   return el;
 }
 
-function createTasksUList(tasks: MDListNode[]): HTMLUListElement {
-  const el = document.createElement("ul");
-  const skipped = createTaskListHTML(el, tasks, true);
-  if (skipped !== 0) el.createEl("li").textContent = `${skipped} checked tasks`
-  return el;
-}
-
 function tFileToSrcFile(rootPath: string, f: TFile): SourceFile {
   const displayName = f.path
     .replace(rootPath + "/", "")
@@ -108,6 +61,17 @@ function tFileToSrcFile(rootPath: string, f: TFile): SourceFile {
   return new SourceFile(uri, displayName);
 }
 
+class TaskVisitCtx {
+  static readonly EMPTY = new TaskVisitCtx();
+  el: HTMLElement | undefined;
+  skipped: boolean | undefined;
+
+  constructor(el: HTMLElement | undefined = undefined, skipped: boolean | undefined = undefined) {
+    this.el = el;
+    this.skipped = skipped;
+  }
+}
+
 // noinspection JSUnusedGlobalSymbols
 export default class WTCPlugin extends Plugin {
   settings: WTCSettings;
@@ -115,18 +79,12 @@ export default class WTCPlugin extends Plugin {
   // Key: root path, Value: epoch time seconds
   latestUpdateTimes: Map<string, number> = new Map();
   // Key: root path, Value: tasks
-  tasksMap: Map<string, lib.Tasks> = new Map();
+  tasksMap: Map<string, RootNode> = new Map();
 
   async showTasks(src: string, el: HTMLElement) {
     await this.collectTasksIfNeeded(src.trim());
     const tasks = this.tasksMap.get(src.trim());
     if (!tasks) throw "Cache may be broken.";
-    const elDates = tasks.getEarliestLatestDate();
-    if (elDates === undefined) {
-      el.textContent = "WTC: No tasks found.";
-      return;
-    }
-    const { earliestYMD, latestYMD } = elDates;
 
     const oldTaskDateBound = new Date();
     oldTaskDateBound.setDate(oldTaskDateBound.getDate() - 7);
@@ -136,30 +94,66 @@ export default class WTCPlugin extends Plugin {
     const oldTasksUL = details.createEl("ul");
     el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
-    for (const currentYMD of datetime.genDates(earliestYMD, latestYMD)) {
-      const isOld = currentYMD.earlierThan(YMD.fromDate(oldTaskDateBound));
-      const tgtUL = isOld ? oldTasksUL : futureTasksUL;
-      // currentYMDの週のタスク一覧があれば生成する
-      const weeklyTasks = tasks.getWeeklyTasksByFromDate(currentYMD);
-      if (weeklyTasks !== undefined) {
-        const weekLI = tgtUL.createEl("li");
-        weekLI.append(createTextSpan(weeklyTasks[0].doesInclude(YMD.today()), weeklyTasks[0].toString(), "(THIS WEEK)"));
-        weekLI.append(createTasksUList(weeklyTasks[1]));
-      }
-      // currentYMDの日のタスク一覧があれば生成する。なかった場合は日付だけ挿入。
-      const dateLI = tgtUL.createEl("li");
-      dateLI.append(createTextSpan(currentYMD.equals(YMD.today()), currentYMD.toString(), "(TODAY)"));
-      const dailyTasks = tasks.getDailyTasksByDate(currentYMD);
-      if (dailyTasks !== undefined) {
-        dateLI.append(createTasksUList(dailyTasks));
-      }
-    }
 
-    if (tasks.hasMalformedMDs()) {
+    // TODO: 今、存在しないTemporalは補完されない。
+    tasks.sortByDateIfNeeded();
+    tasks.visit<TaskVisitCtx>(TaskVisitCtx.EMPTY, new class implements NodeVisitor<TaskVisitCtx> {
+      enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
+        switch (node.type) {
+          case "Root":
+            break;
+          case "Temporal":
+            const tNode = node as lib.TemporalNode;
+            const temporal = tNode.temporal;
+            const isOld = temporal.getDate().earlierThan(YMD.fromDate(oldTaskDateBound));
+            const tgtUL = isOld ? oldTasksUL : futureTasksUL;
+            const tgtLI = tgtUL.createEl("li");
+            if (temporal instanceof YMD) {
+              tgtLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
+            } else if (temporal instanceof DateRange) {
+              tgtLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
+            }
+            const childCtx = new TaskVisitCtx(tgtLI.createEl("ul"));
+            return () => childCtx;
+          case "Source":
+            const sNode = node as lib.SourceNode;
+            const pathLI = ctx.el!.createEl("li");
+            const link = pathLI.createEl("a");
+            link.href = sNode.source.openURI;
+            link.textContent = sNode.source.displayName;
+            link.className = "obsidian-weekly-tasks-plain-anchor";
+            const childUL = pathLI.createEl("ul");
+            return () => new TaskVisitCtx(childUL, false);
+          case "Task":
+            const taskNode = node as lib.TaskNode;
+            if (taskNode.task.task.isAllChecked()) {
+              ctx.skipped = true;
+            } else {
+              taskNode.task.task.visit(new TaskHTMLGenerator(), ctx.el!.createEl("li"));
+            }
+            // empty context because TaskNode doesn't have children
+            return () => TaskVisitCtx.EMPTY;
+        }
+        return function () {
+          return ctx;
+        };
+      }
+
+      exit(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
+        if (node.type == "Source") {
+          const skipped = childrenCtx.filter(value => value.skipped).length;
+          if (skipped !== 0) {
+            childrenCtx[0].el!.createEl("li").textContent = `${skipped} checked tasks`
+          }
+        }
+      }
+    })
+
+    if (tasks.malformedMDs.length !== 0) {
       const malformedLI = futureTasksUL.createEl("li");
       malformedLI.textContent = "Malformed contents";
       const malformedUL = malformedLI.createEl("ul");
-      tasks.getMalformedMDs().forEach(malformedMD => {
+      tasks.malformedMDs.forEach(malformedMD => {
         const li = malformedUL.createEl("li");
         li.textContent = malformedMD.toString();
       });
@@ -184,7 +178,7 @@ export default class WTCPlugin extends Plugin {
     }
 
     const folderStack: TFolder[] = [rootFolder];
-    const tasks = new Tasks();
+    const tasks = new RootNode();
     while (folderStack.length > 0) {
       const got = folderStack.pop();
       if (!got) throw "Unreachable";
@@ -195,10 +189,10 @@ export default class WTCPlugin extends Plugin {
           const content = await this.app.vault.cachedRead(child);
           const fileTasks = lib.parseContentToTasks(tFileToSrcFile(rootPath, child), content);
           if (fileTasks) {
-            for (const malformedMD of fileTasks.getMalformedMDs()) {
+            for (const malformedMD of fileTasks.malformedMDs) {
               console.log(malformedMD);
             }
-            tasks.addAll(fileTasks);
+            tasks.addAllTasks(fileTasks);
           }
         } else {
           throw "Unreachable";
