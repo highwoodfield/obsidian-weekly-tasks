@@ -36,6 +36,7 @@ class TaskHTMLGenerator implements MDNodeVisitor<HTMLElement> {
     })
   }
 }
+
 /**
  * boolがtrueならe.textContentを<b>にしてかつemphasisTextをくっつける
  * @param bool
@@ -92,16 +93,17 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     this.oldTasksUL = oldTasksUL;
     this.futureTasksUL = futureTasksUL;
   }
+
   enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
     switch (node.type) {
-          case "Temporal":
-            return this.enterTemporal(node as lib.TemporalNode, ctx);
-          case "Source":
-            return this.enterSource(node as lib.SourceNode, ctx);
-          case "Task":
-            return this.enterTask(node as lib.TaskNode, ctx);
-        }
-        return () => TaskVisitCtx.EMPTY;
+      case "Temporal":
+        return this.enterTemporal(node as lib.TemporalNode, ctx);
+      case "Source":
+        return this.enterSource(node as lib.SourceNode, ctx);
+      case "Task":
+        return this.enterTask(node as lib.TaskNode, ctx);
+    }
+    return () => TaskVisitCtx.EMPTY;
   }
 
   enterTemporal(node: lib.TemporalNode, _ctx: TaskVisitCtx): () => TaskVisitCtx {
@@ -143,6 +145,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     const childUL = pathLI.createEl("ul");
     return () => new TaskVisitCtx(childUL, false);
   }
+
   enterTask(node: lib.TaskNode, ctx: TaskVisitCtx): () => TaskVisitCtx {
     if (node.task.task.isAllChecked()) {
       ctx.skipped = true;

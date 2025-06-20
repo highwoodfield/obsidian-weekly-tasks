@@ -12,8 +12,11 @@ export const DATE_FORMAT = "YYYY/MM/DD"
 
 export abstract class Temporal {
   abstract getDate(): YMD;
+
   abstract equals(another: Temporal): boolean;
+
   abstract toString(): string;
+
   compareTemporal(another: Temporal): number {
     return this.getDate().compare(another.getDate());
   }
@@ -87,6 +90,7 @@ export function* genDates(from: YMD, to: YMD) {
     currentYMD = YMD.fromDate(currentDate);
   }
 }
+
 /**
  * Local Time Zone.
  */

@@ -41,6 +41,7 @@ export function parseContentToTasks(srcFile: SourceFile, content: string): RootN
   }
   return tasks.hasTasks() ? tasks : undefined;
 }
+
 export function parseMDRootToTaskRoot(mdRoot: MDListRootNode): RootNode {
   const rootNode = new RootNode();
   for (const rawDateOrRange of mdRoot.children) {
@@ -129,6 +130,7 @@ export abstract class Node {
       }
       visitor.exit(node, ctx, childrenCtx);
     }
+
     visitRecursive(this, initialCtx);
   }
 }
