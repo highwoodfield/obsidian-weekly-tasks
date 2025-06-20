@@ -6,6 +6,8 @@ import {DATE_FORMAT, DateRange, Temporal, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
+const CLASS_UNDONE_UL = "obsidian-weekly-tasks-undone-ul"
+
 interface WTCSettings {
   mySetting: string;
 }
@@ -168,6 +170,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
       temporalLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
     }
     const undoneUL = document.createElement("ul");
+    undoneUL.classList.add(CLASS_UNDONE_UL);
     for (const childCtx of childrenCtx) {
       const span = temporalLI.createSpan();
       span.style.paddingLeft = "4px";
@@ -215,6 +218,17 @@ export default class WTCPlugin extends Plugin {
 
     const oldTaskDateBound = new Date();
     oldTaskDateBound.setDate(oldTaskDateBound.getDate() - 7);
+    const checkbox = el.createEl("input", { type: "checkbox" });
+    checkbox.addEventListener("click",() => {
+      const elements = document.getElementsByClassName(CLASS_UNDONE_UL);
+      for (let i = 0; i < elements.length; i++) {
+        const e = elements[i];
+        if (e instanceof HTMLElement) {
+          e.style.display = checkbox.checked ? "none" : "block";
+        }
+      }
+    })
+    el.createSpan().textContent = "Summary"
 
     const details = el.createEl("details")
     details.createEl("summary").textContent = "Old Tasks";
