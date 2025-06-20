@@ -45,6 +45,7 @@ class TaskHTMLGenerator implements MDNodeVisitor<HTMLElement> {
  */
 function createTextSpan(bool: boolean, text: string, emphasisText: string): HTMLSpanElement {
   const el = document.createElement("span");
+  el.style.paddingRight = "4px";
   if (bool) {
     el.createEl("b").textContent = text + " " + emphasisText;
   } else {
@@ -74,12 +75,18 @@ function tFileToSrcFile(rootPaths: string[], f: TFile): SourceFile {
 class TaskVisitCtx {
   static readonly EMPTY = new TaskVisitCtx();
   li = document.createElement("li");
-  isSkipped: boolean | undefined = undefined;
+  isDone: boolean | undefined = undefined;
 }
 
 class TemporalCtx extends TaskVisitCtx {
   temporal: Temporal | undefined = undefined;
   isOld: boolean | undefined = undefined;
+}
+
+class SourceCtx extends TaskVisitCtx {
+  sourceFile: SourceFile | undefined = undefined;
+  shortName: string | undefined = undefined;
+  undoneCount: number | undefined = undefined;
 }
 
 class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
@@ -98,7 +105,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
       case "Root":
         return () => new TemporalCtx();
       case "Temporal":
-        return () => new TaskVisitCtx();
+        return () => new SourceCtx();
       case "Source":
         return () => new TaskVisitCtx();
       case "Task":
@@ -107,9 +114,8 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
   }
 
   enterTask(node: lib.TaskNode, ctx: TaskVisitCtx): () => TaskVisitCtx {
-    if (node.task.task.isAllChecked()) {
-      ctx.isSkipped = true;
-    } else {
+    ctx.isDone = node.task.task.isAllChecked();
+    if (!ctx.isDone) {
       node.task.task.visit(new TaskHTMLGenerator(), ctx.li!);
     }
     // empty context because TaskNode doesn't have children
@@ -122,10 +128,10 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
         this.exitRoot(node, ctx, childrenCtx as TemporalCtx[]);
         break;
       case "Temporal":
-        this.exitTemporal(node as lib.TemporalNode, ctx as TemporalCtx, childrenCtx);
+        this.exitTemporal(node as lib.TemporalNode, ctx as TemporalCtx, childrenCtx as SourceCtx[]);
         break;
       case "Source":
-        this.exitSource(node as lib.SourceNode, ctx, childrenCtx);
+        this.exitSource(node as lib.SourceNode, ctx as SourceCtx, childrenCtx);
         break;
     }
   }
@@ -151,7 +157,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     }
   }
 
-  exitTemporal(node: lib.TemporalNode, ctx: TemporalCtx, childrenCtx: TaskVisitCtx[]): void {
+  exitTemporal(node: lib.TemporalNode, ctx: TemporalCtx, childrenCtx: SourceCtx[]): void {
     const temporal = node.temporal;
     ctx.temporal = temporal;
     ctx.isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
@@ -161,24 +167,31 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     } else if (temporal instanceof DateRange) {
       temporalLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
     }
-    temporalLI.createEl("ul").append(...childrenCtx.map(v => v.li!));
+    const undoneUL = document.createElement("ul");
+    for (const childCtx of childrenCtx) {
+      const span = temporalLI.createSpan();
+      span.style.paddingLeft = "4px";
+      span.append(childCtx.sourceFile!.toAnchor(`${childCtx.shortName}(${childCtx.undoneCount})`))
+      if (childCtx.undoneCount! > 0) {
+        undoneUL.append(childCtx.li!);
+      }
+    }
+    temporalLI.append(undoneUL);
   }
 
-  exitSource(node: lib.SourceNode, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
+  exitSource(node: lib.SourceNode, ctx: SourceCtx, childrenCtx: TaskVisitCtx[]): void {
     const pathLI = ctx.li!
-    const link = pathLI.createEl("a");
-    const source = node.source;
-    link.href = source.openURI;
-    link.textContent = source.displayName;
-    link.className = "obsidian-weekly-tasks-plain-anchor";
+    pathLI.append(node.source.toAnchor(node.source.displayName));
 
     const pathUL = pathLI.createEl("ul");
-    pathUL.append(...childrenCtx.filter(v => !v.isSkipped).map(v => v.li!));
+    pathUL.append(...childrenCtx.filter(v => !v.isDone).map(v => v.li!));
 
-    const skipped = childrenCtx.filter(value => value.isSkipped).length;
-    if (skipped !== 0) {
-      pathUL.createEl("li").textContent = `${skipped} checked tasks`
-    }
+    const skipped = childrenCtx.filter(value => value.isDone).length;
+    ctx.undoneCount = childrenCtx.length - skipped;
+
+    const dispNameElements = node.source.displayName.split(/([-\/])/);
+    ctx.shortName = dispNameElements[dispNameElements.length - 1].substring(0, 2);
+    ctx.sourceFile = node.source;
   }
 
   exitTask(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {

@@ -67,6 +67,14 @@ export class SourceFile {
   equals(another: SourceFile) {
     return another.openURI === this.openURI && another.displayName === this.displayName;
   }
+
+  toAnchor(content: string): HTMLAnchorElement {
+    const a = document.createElement("a");
+    a.href = this.openURI;
+    a.textContent = content;
+    a.className = "obsidian-weekly-tasks-plain-anchor";
+    return a;
+  }
 }
 
 // TODO: TaskTreeみたいな名前にするか、そういう名前の新しいクラスを作って、メンバをもっと秘匿したい。
