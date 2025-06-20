@@ -177,10 +177,6 @@ export default class WTCPlugin extends Plugin {
     el.createEl("hr");
     const futureTasksUL = el.createEl("ul");
 
-    // TODO: 今、存在しないTemporalは補完されない。
-    tasks.sortByDateIfNeeded();
-    tasks.visit<TaskVisitCtx>(TaskVisitCtx.EMPTY, new TaskNodeVisitor(oldTaskDateBound, oldTasksUL, futureTasksUL));
-
     if (tasks.malformedMDs.length !== 0) {
       const malformedLI = futureTasksUL.createEl("li");
       malformedLI.textContent = "Malformed contents";
@@ -190,6 +186,11 @@ export default class WTCPlugin extends Plugin {
         li.textContent = malformedMD.toString();
       });
     }
+
+    // TODO: 今、存在しないTemporalは補完されない。
+    tasks.sortByDateIfNeeded();
+    tasks.visit<TaskVisitCtx>(TaskVisitCtx.EMPTY, new TaskNodeVisitor(oldTaskDateBound, oldTasksUL, futureTasksUL));
+
   }
 
   async collectTasksIfNeeded(rootPath: string) {
