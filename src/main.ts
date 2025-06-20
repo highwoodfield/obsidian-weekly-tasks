@@ -73,20 +73,12 @@ function tFileToSrcFile(rootPaths: string[], f: TFile): SourceFile {
 
 class TaskVisitCtx {
   static readonly EMPTY = new TaskVisitCtx();
-  el: HTMLElement | undefined = undefined;
+  li = document.createElement("li");
   isSkipped: boolean | undefined = undefined;
-
-  constructor(el: HTMLElement | undefined = undefined) {
-    this.el = el;
-  }
 }
 
 class TemporalCtx extends TaskVisitCtx {
   isOld: boolean | undefined = undefined;
-
-  constructor(el: HTMLElement) {
-    super(el);
-  }
 }
 
 class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
@@ -104,48 +96,37 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
   enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
     switch (node.type) {
       case "Root":
-        return () => new TemporalCtx(document.createElement("ul"));
+        return () => new TemporalCtx();
       case "Temporal":
-        return this.enterTemporal(node as lib.TemporalNode, ctx as TemporalCtx);
+        return () => new TaskVisitCtx();
       case "Source":
-        return this.enterSource(node as lib.SourceNode, ctx);
+        return () => new TaskVisitCtx();
       case "Task":
         return this.enterTask(node as lib.TaskNode, ctx);
     }
   }
 
-  enterTemporal(node: lib.TemporalNode, ctx: TemporalCtx): () => TaskVisitCtx {
-    const temporal = node.temporal;
-    ctx.isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
-
-    // 日付が飛んでいる場合補完する
-    const lastTemporal = this.lastTemporal;
-    if (lastTemporal) {
-      let cursor = lastTemporal.getDate();
-      while (true) {
-        cursor = cursor.plusDays(1)
-        if (!cursor.earlierThan(node.temporal.getDate())) {
-          break;
-        }
-        ctx.el!.createEl("li").append(cursor.toString())
-      }
-    }
-
-    const childCtx = new TaskVisitCtx(document.createElement("ul"));
-    this.lastTemporal = node.temporal;
-    return () => childCtx;
-  }
-
-  enterSource(node: lib.SourceNode, ctx: TaskVisitCtx): () => TaskVisitCtx {
-    const childUL = document.createElement("ul");
-    return () => new TaskVisitCtx(childUL);
-  }
+ // enterTemporal(node: lib.TemporalNode, ctx: TemporalCtx): () => TaskVisitCtx {
+    // TODO: 多分ROOTでやるべき?あるノードはそのノードの事しか知らない
+//    // 日付が飛んでいる場合補完する
+//    const lastTemporal = this.lastTemporal;
+//    if (lastTemporal) {
+//      let cursor = lastTemporal.getDate();
+//      while (true) {
+//        cursor = cursor.plusDays(1)
+//        if (!cursor.earlierThan(node.temporal.getDate())) {
+//          break;
+//        }
+//        ctx.el!.createEl("li").append(cursor.toString())
+//      }
+//    }
+//  }
 
   enterTask(node: lib.TaskNode, ctx: TaskVisitCtx): () => TaskVisitCtx {
     if (node.task.task.isAllChecked()) {
       ctx.isSkipped = true;
     } else {
-      node.task.task.visit(new TaskHTMLGenerator(), ctx.el!.createEl("li"));
+      node.task.task.visit(new TaskHTMLGenerator(), ctx.li!);
     }
     // empty context because TaskNode doesn't have children
     return () => TaskVisitCtx.EMPTY;
@@ -156,32 +137,34 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
       case "Root":
         for (const childCtx of childrenCtx) {
           const tgtUL = (childCtx as TemporalCtx).isOld ? this.oldTasksUL : this.futureTasksUL;
-          tgtUL.append(childCtx.el!);
+          tgtUL.append(childCtx.li!);
         }
         break;
       case "Temporal":
         const temporal = (node as lib.TemporalNode).temporal;
-        const tgtLI = ctx.el!.createEl("li");
+        (ctx as TemporalCtx).isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
+        const temporalLI = ctx.li!
         if (temporal instanceof YMD) {
-          tgtLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
+          temporalLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
         } else if (temporal instanceof DateRange) {
-          tgtLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
+          temporalLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
         }
-        tgtLI.append(...childrenCtx.map(v => v.el!));
+        temporalLI.createEl("ul").append(...childrenCtx.map(v => v.li!));
         break;
       case "Source":
-        const pathLI = ctx.el!.createEl("li");
+        const pathLI = ctx.li!
         const link = pathLI.createEl("a");
         const source = (node as lib.SourceNode).source;
         link.href = source.openURI;
         link.textContent = source.displayName;
         link.className = "obsidian-weekly-tasks-plain-anchor";
 
-        pathLI.append(childrenCtx[0].el!);
+        const pathUL = pathLI.createEl("ul");
+        pathUL.append(...childrenCtx.filter(v => !v.isSkipped).map(v => v.li!));
 
         const skipped = childrenCtx.filter(value => value.isSkipped).length;
         if (skipped !== 0) {
-          childrenCtx[0].el!.createEl("li").textContent = `${skipped} checked tasks`
+          pathUL.createEl("li").textContent = `${skipped} checked tasks`
         }
         break;
     }
