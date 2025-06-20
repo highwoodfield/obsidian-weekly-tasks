@@ -72,41 +72,25 @@ class TaskVisitCtx {
   }
 }
 
-// noinspection JSUnusedGlobalSymbols
-export default class WTCPlugin extends Plugin {
-  settings: WTCSettings;
+class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
+  oldTaskDateBound: Date;
+  oldTasksUL: HTMLElement;
+  futureTasksUL: HTMLElement;
 
-  // Key: root path, Value: epoch time seconds
-  latestUpdateTimes: Map<string, number> = new Map();
-  // Key: root path, Value: tasks
-  tasksMap: Map<string, RootNode> = new Map();
-
-  async showTasks(src: string, el: HTMLElement) {
-    await this.collectTasksIfNeeded(src.trim());
-    const tasks = this.tasksMap.get(src.trim());
-    if (!tasks) throw "Cache may be broken.";
-
-    const oldTaskDateBound = new Date();
-    oldTaskDateBound.setDate(oldTaskDateBound.getDate() - 7);
-
-    const details = el.createEl("details")
-    details.createEl("summary").textContent = "Old Tasks";
-    const oldTasksUL = details.createEl("ul");
-    el.createEl("hr");
-    const futureTasksUL = el.createEl("ul");
-
-    // TODO: 今、存在しないTemporalは補完されない。
-    tasks.sortByDateIfNeeded();
-    tasks.visit<TaskVisitCtx>(TaskVisitCtx.EMPTY, new class implements NodeVisitor<TaskVisitCtx> {
-      enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
-        switch (node.type) {
+  constructor(oldTaskDateBound: Date, oldTasksUL: HTMLElement, futureTasksUL: HTMLElement) {
+    this.oldTaskDateBound = oldTaskDateBound;
+    this.oldTasksUL = oldTasksUL;
+    this.futureTasksUL = futureTasksUL;
+  }
+  enter(node: Node, ctx: TaskVisitCtx): () => TaskVisitCtx {
+    switch (node.type) {
           case "Root":
             break;
           case "Temporal":
             const tNode = node as lib.TemporalNode;
             const temporal = tNode.temporal;
-            const isOld = temporal.getDate().earlierThan(YMD.fromDate(oldTaskDateBound));
-            const tgtUL = isOld ? oldTasksUL : futureTasksUL;
+            const isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
+            const tgtUL = isOld ? this.oldTasksUL : this.futureTasksUL;
             const tgtLI = tgtUL.createEl("li");
             if (temporal instanceof YMD) {
               tgtLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
@@ -137,17 +121,45 @@ export default class WTCPlugin extends Plugin {
         return function () {
           return ctx;
         };
-      }
+  }
 
-      exit(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
-        if (node.type == "Source") {
-          const skipped = childrenCtx.filter(value => value.skipped).length;
-          if (skipped !== 0) {
-            childrenCtx[0].el!.createEl("li").textContent = `${skipped} checked tasks`
-          }
-        }
+  exit(node: Node, ctx: TaskVisitCtx, childrenCtx: TaskVisitCtx[]): void {
+    if (node.type == "Source") {
+      const skipped = childrenCtx.filter(value => value.skipped).length;
+      if (skipped !== 0) {
+        childrenCtx[0].el!.createEl("li").textContent = `${skipped} checked tasks`
       }
-    })
+    }
+  }
+
+}
+
+// noinspection JSUnusedGlobalSymbols
+export default class WTCPlugin extends Plugin {
+  settings: WTCSettings;
+
+  // Key: root path, Value: epoch time seconds
+  latestUpdateTimes: Map<string, number> = new Map();
+  // Key: root path, Value: tasks
+  tasksMap: Map<string, RootNode> = new Map();
+
+  async showTasks(src: string, el: HTMLElement) {
+    await this.collectTasksIfNeeded(src.trim());
+    const tasks = this.tasksMap.get(src.trim());
+    if (!tasks) throw "Cache may be broken.";
+
+    const oldTaskDateBound = new Date();
+    oldTaskDateBound.setDate(oldTaskDateBound.getDate() - 7);
+
+    const details = el.createEl("details")
+    details.createEl("summary").textContent = "Old Tasks";
+    const oldTasksUL = details.createEl("ul");
+    el.createEl("hr");
+    const futureTasksUL = el.createEl("ul");
+
+    // TODO: 今、存在しないTemporalは補完されない。
+    tasks.sortByDateIfNeeded();
+    tasks.visit<TaskVisitCtx>(TaskVisitCtx.EMPTY, new TaskNodeVisitor(oldTaskDateBound, oldTasksUL, futureTasksUL));
 
     if (tasks.malformedMDs.length !== 0) {
       const malformedLI = futureTasksUL.createEl("li");
