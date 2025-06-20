@@ -175,6 +175,9 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
       const span = temporalLI.createSpan();
       span.style.paddingLeft = "4px";
       span.append(childCtx.sourceFile!.toAnchor(`${childCtx.shortName}(${childCtx.undoneCount})`))
+      if (childCtx.undoneCount === 0) {
+        span.style.opacity = "0.5";
+      }
       if (childCtx.undoneCount! > 0) {
         undoneUL.append(childCtx.li!);
       }
