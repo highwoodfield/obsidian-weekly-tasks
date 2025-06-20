@@ -148,7 +148,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
           if (!cursor.earlierThan(childCtx.temporal!.getDate())) {
             break;
           }
-          tgtUL.createEl("li").append(cursor.toString())
+          tgtUL.createEl("li").append(createTextSpan(cursor.equals(YMD.today()), cursor.toString(), "(TODAY)"));
         }
       }
 
