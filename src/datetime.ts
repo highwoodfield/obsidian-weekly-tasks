@@ -92,7 +92,7 @@ export function* genDates(from: YMD, to: YMD) {
  */
 export class YMD extends Temporal {
   year: number;
-  month: number;
+  month: number; // 1 ~ 12
   day: number;
 
   constructor(year: number, month: number, day: number) {

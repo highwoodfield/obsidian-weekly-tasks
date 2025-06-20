@@ -2,7 +2,7 @@ import {App, Modal, Notice, Plugin, Setting, TFile, TFolder} from 'obsidian';
 
 import * as lib from "./lib.js"
 import {RootNode, Node} from "./lib.js"
-import {DATE_FORMAT, DateRange, YMD} from "./datetime";
+import {DATE_FORMAT, DateRange, Temporal, Week, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
@@ -73,9 +73,10 @@ class TaskVisitCtx {
 }
 
 class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
-  oldTaskDateBound: Date;
-  oldTasksUL: HTMLElement;
-  futureTasksUL: HTMLElement;
+  private readonly oldTaskDateBound: Date;
+  private readonly oldTasksUL: HTMLElement;
+  private readonly futureTasksUL: HTMLElement;
+  private lastTemporal: Temporal | undefined = undefined;
 
   constructor(oldTaskDateBound: Date, oldTasksUL: HTMLElement, futureTasksUL: HTMLElement) {
     this.oldTaskDateBound = oldTaskDateBound;
@@ -98,6 +99,20 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     const temporal = node.temporal;
     const isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
     const tgtUL = isOld ? this.oldTasksUL : this.futureTasksUL;
+
+    // 日付が飛んでいる場合補完する
+    const lastTemporal = this.lastTemporal;
+    if (lastTemporal) {
+      let cursor = lastTemporal.getDate();
+      while (true) {
+        cursor = cursor.plusDays(1)
+        if (!cursor.earlierThan(node.temporal.getDate())) {
+          break;
+        }
+        tgtUL.createEl("li").append(cursor.toString())
+      }
+    }
+
     const tgtLI = tgtUL.createEl("li");
     if (temporal instanceof YMD) {
       tgtLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
@@ -105,6 +120,8 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
       tgtLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
     }
     const childCtx = new TaskVisitCtx(tgtLI.createEl("ul"));
+
+    this.lastTemporal = node.temporal;
     return () => childCtx;
   }
 
