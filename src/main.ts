@@ -52,10 +52,19 @@ function createTextSpan(bool: boolean, text: string, emphasisText: string): HTML
   return el;
 }
 
-function tFileToSrcFile(rootPath: string, f: TFile): SourceFile {
-  const displayName = f.path
-    .replace(rootPath + "/", "")
-    .replace(/\.md$/, "");
+function tFileToSrcFile(rootPaths: string[], f: TFile): SourceFile {
+  let displayName: string | undefined = undefined;
+  for (const rootPath of rootPaths) {
+    if (f.path.contains(rootPath)) {
+      displayName = f.path
+        .replace(rootPath + "/", "")
+        .replace(/\.md$/, "");
+      break;
+    }
+  }
+  if (displayName === undefined) {
+    throw new Error("filename mismatch: " + rootPaths + " and " + f.path);
+  }
   const uri = "obsidian://open?file=" +
     encodeURIComponent(f.path);
   return new SourceFile(uri, displayName);
@@ -163,9 +172,9 @@ export default class WTCPlugin extends Plugin {
   // Key: root path, Value: tasks
   tasksMap: Map<string, RootNode> = new Map();
 
-  async showTasks(src: string, el: HTMLElement) {
-    await this.collectTasksIfNeeded(src.trim());
-    const tasks = this.tasksMap.get(src.trim());
+  async showTasks(src: string[], el: HTMLElement) {
+    await this.collectTasksIfNeeded(src);
+    const tasks = this.tasksMap.get(src.join(";"));
     if (!tasks) throw "Cache may be broken.";
 
     const oldTaskDateBound = new Date();
@@ -187,30 +196,31 @@ export default class WTCPlugin extends Plugin {
       });
     }
 
-    // TODO: 今、存在しないTemporalは補完されない。
     tasks.sortByDateIfNeeded();
     tasks.visit<TaskVisitCtx>(TaskVisitCtx.EMPTY, new TaskNodeVisitor(oldTaskDateBound, oldTasksUL, futureTasksUL));
-
   }
 
-  async collectTasksIfNeeded(rootPath: string) {
-    const latestUpdateTime = this.latestUpdateTimes.get(rootPath);
+  async collectTasksIfNeeded(rootPaths: string[]) {
+    const latestUpdateTime = this.latestUpdateTimes.get(rootPaths.join(";"));
     // Do nothing if we already have collected tasks and they are fresh enough.
     if (latestUpdateTime !== undefined
       && getEpochTimeMillis() < (latestUpdateTime + 1000)) {
-      console.debug("Debounce", rootPath);
+      console.debug("Debounce", rootPaths);
       return;
     }
-    this.latestUpdateTimes.set(rootPath, getEpochTimeMillis());
+    this.latestUpdateTimes.set(rootPaths.join(";"), getEpochTimeMillis());
 
-    console.debug("Update", rootPath);
+    console.debug("Update", rootPaths);
 
-    const rootFolder = this.app.vault.getFolderByPath(rootPath);
-    if (!rootFolder) {
-      throw "No root folder found";
+    const rootFolders = rootPaths
+      .map(this.app.vault.getFolderByPath)
+      .filter(value => value !== null)
+      .map(value => value!);
+    if (rootFolders.length !== rootPaths.length) {
+      throw "some root folders cannot be found";
     }
 
-    const folderStack: TFolder[] = [rootFolder];
+    const folderStack = [...rootFolders];
     const tasks = new RootNode();
     while (folderStack.length > 0) {
       const got = folderStack.pop();
@@ -220,7 +230,7 @@ export default class WTCPlugin extends Plugin {
           folderStack.push(child);
         } else if (child instanceof TFile) {
           const content = await this.app.vault.cachedRead(child);
-          const fileTasks = lib.parseContentToTasks(tFileToSrcFile(rootPath, child), content);
+          const fileTasks = lib.parseContentToTasks(tFileToSrcFile(rootPaths, child), content);
           if (fileTasks) {
             for (const malformedMD of fileTasks.malformedMDs) {
               console.log(malformedMD);
@@ -232,9 +242,8 @@ export default class WTCPlugin extends Plugin {
         }
       }
     }
-    this.tasksMap.set(rootPath, tasks);
+    this.tasksMap.set(rootPaths.join(";"), tasks);
   }
-
 
   async onload() {
     await this.loadSettings();
@@ -242,7 +251,7 @@ export default class WTCPlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor("weekly-task-collect", async (src, el) => {
       try {
         const before = getEpochTimeMillis();
-        await this.showTasks(src, el);
+        await this.showTasks(src.split("\n").map(value => value.trim()), el);
         const after = getEpochTimeMillis();
         console.debug("showTasks() took " + (after - before) + " ms");
       } catch (e) {
