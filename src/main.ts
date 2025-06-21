@@ -6,7 +6,7 @@ import {DATE_FORMAT, DateRange, Temporal, YMD} from "./datetime";
 import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
-const CLASS_UNDONE_UL = "obsidian-weekly-tasks-undone-ul"
+const CLASS_UNDONE = "obsidian-weekly-tasks-undone"
 
 interface WTCSettings {
   mySetting: string;
@@ -164,26 +164,29 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     const temporal = node.temporal;
     ctx.temporal = temporal;
     ctx.isOld = temporal.getDate().earlierThan(YMD.fromDate(this.oldTaskDateBound));
-    const temporalLI = ctx.li!
+    const details = ctx.li!.createEl("details");
+    details.open = true;
+    details.classList.add(CLASS_UNDONE);
+    const summary = details.createEl("summary");
     if (temporal instanceof YMD) {
-      temporalLI.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
+      summary.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
     } else if (temporal instanceof DateRange) {
-      temporalLI.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
+      summary.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
     }
-    const undoneUL = document.createElement("ul");
-    undoneUL.classList.add(CLASS_UNDONE_UL);
+    const undoneUL = details.createEl("ul");
     for (const childCtx of childrenCtx) {
-      const span = temporalLI.createSpan();
+      // タスクの概要を日付の行にinlineで追加する
+      const span = summary.createSpan();
       span.style.paddingLeft = "4px";
       span.append(childCtx.sourceFile!.toAnchor(`${childCtx.shortName}(${childCtx.undoneCount})`))
       if (childCtx.undoneCount === 0) {
         span.style.opacity = "0.5";
       }
+      // 未完了タスクがあれば、undoneULに追加する
       if (childCtx.undoneCount! > 0) {
         undoneUL.append(childCtx.li!);
       }
     }
-    temporalLI.append(undoneUL);
   }
 
   exitSource(node: lib.SourceNode, ctx: SourceCtx, childrenCtx: TaskVisitCtx[]): void {
@@ -224,11 +227,11 @@ export default class WTCPlugin extends Plugin {
     oldTaskDateBound.setDate(oldTaskDateBound.getDate() - 7);
     const checkbox = el.createEl("input", { type: "checkbox" });
     checkbox.addEventListener("click",() => {
-      const elements = document.getElementsByClassName(CLASS_UNDONE_UL);
+      const elements = document.getElementsByClassName(CLASS_UNDONE);
       for (let i = 0; i < elements.length; i++) {
         const e = elements[i];
-        if (e instanceof HTMLElement) {
-          e.style.display = checkbox.checked ? "none" : "block";
+        if (e instanceof HTMLDetailsElement) {
+          e.open = !checkbox.checked;
         }
       }
     })
