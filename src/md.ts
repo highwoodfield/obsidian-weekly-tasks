@@ -104,6 +104,19 @@ export class MDListNode {
       : this.text;
   }
 
+  toHTMLElement(): HTMLElement {
+    const body = document.createElement("span");
+    if (this.checkText) {
+      const cb = body.createEl("input", { type: "checkbox" });
+      cb.style.verticalAlign = "middle";
+      cb.setAttribute("data-task", this.checkText);
+      cb.disabled = true;
+    }
+    const el = body.createEl("span");
+    el.textContent = this.text;
+    return body;
+  }
+
   visit<CtxType>(visitor: MDNodeVisitor<CtxType>, ctx: CtxType) {
     const childrenCtxGenerator = visitor.enter(this, ctx);
     const childrenCtx: CtxType[] = [];

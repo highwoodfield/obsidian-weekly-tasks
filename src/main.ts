@@ -22,7 +22,8 @@ function getEpochTimeMillis(): number {
 
 class TaskHTMLGenerator implements MDNodeVisitor<HTMLElement> {
   enter(node: MDListNode, ctx: HTMLElement): () => HTMLElement {
-    ctx.textContent = node.rawText;
+    //ctx.textContent = node.rawText;
+    ctx.append(node.toHTMLElement());
     return () => document.createElement("li");
   }
 
