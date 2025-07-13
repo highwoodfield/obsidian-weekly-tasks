@@ -9,6 +9,8 @@ export function toEpochDate(date: YMD): number {
 
 export const DATE_RANGE_DELIMITER = " ~ ";
 export const DATE_FORMAT = "YYYY/MM/DD"
+export const LOCALE_DATE_FORMAT = "YYYY年MM月DD日"
+export const DAYS = [ "日", "月", "火", "水", "木", "金", "土" ]
 
 export abstract class Temporal {
   abstract getDate(): YMD;
@@ -140,6 +142,11 @@ export class YMD extends Temporal {
 
   toString() {
     return moment(this.toDate()).format(DATE_FORMAT);
+  }
+
+  toStringWithDay() {
+    const d = this.toDate();
+    return moment(d).format(LOCALE_DATE_FORMAT) + "(" + DAYS[d.getDay()] + ")";
   }
 
   /**

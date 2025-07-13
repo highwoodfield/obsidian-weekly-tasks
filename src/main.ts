@@ -151,7 +151,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
           if (!cursor.earlierThan(childCtx.temporal!.getDate())) {
             break;
           }
-          tgtUL.createEl("li").append(createTextSpan(cursor.equals(YMD.today()), cursor.toString(), "(TODAY)"));
+          tgtUL.createEl("li").append(createTextSpan(cursor.equals(YMD.today()), cursor.toStringWithDay(), "(TODAY)"));
         }
       }
 
@@ -169,7 +169,7 @@ class TaskNodeVisitor implements lib.NodeVisitor<TaskVisitCtx> {
     details.classList.add(CLASS_UNDONE);
     const summary = details.createEl("summary");
     if (temporal instanceof YMD) {
-      summary.append(createTextSpan(temporal.equals(YMD.today()), temporal.toString(), "(TODAY)"));
+      summary.append(createTextSpan(temporal.equals(YMD.today()), temporal.toStringWithDay(), "(TODAY)"));
     } else if (temporal instanceof DateRange) {
       summary.append(createTextSpan(temporal.doesInclude(YMD.today()), temporal.toString(), "(THIS WEEK)"));
     }
