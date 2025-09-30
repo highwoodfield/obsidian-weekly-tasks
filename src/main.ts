@@ -7,7 +7,7 @@ import * as datetime from "./datetime.js"
 import {MDListNode, MDNodeVisitor, SourceFile} from "./md";
 
 const CLASS_UNDONE = "obsidian-weekly-tasks-undone"
-
+const DAYS =  ["日", "月", "火", "水", "木", "金", "土"]
 interface WTCSettings {
   mySetting: string;
 }
@@ -404,7 +404,7 @@ function noticeIfUndefined(obj: any | undefined, msg: string) {
 class RegularTaskInsertionModal extends Modal {
   from: YMD | undefined = undefined;
   to: YMD | undefined = undefined;
-  day: number | undefined = undefined;
+  days: number[] = [];
   taskMD: string = "";
 
   constructor(app: App) {
@@ -419,7 +419,6 @@ class RegularTaskInsertionModal extends Modal {
         component.setDefaultFormat(DATE_FORMAT)
           .onChange(value => {
             this.from = YMD.fromString(value);
-            noticeIfUndefined(this.from, "invalid: " + value);
           })
       })
     new Setting(contentEl)
@@ -428,17 +427,15 @@ class RegularTaskInsertionModal extends Modal {
         component.setDefaultFormat(DATE_FORMAT)
           .onChange(value => {
             this.to = YMD.fromString(value);
-            noticeIfUndefined(this.to, "invalid: " + value);
           })
       })
     new Setting(contentEl)
-      .setName("曜日")
-      .addDropdown(component => {
-        ["日", "月", "火", "水", "木", "金", "土"].forEach((value, index) => {
-          component.addOption(index.toString(), value);
-        });
+      .setName("曜日 (カンマ区切り)")
+      .addText(component => {
         component.onChange(value => {
-          this.day = Number.parseInt(value);
+          this.days = value.split(",")
+            .map(v => v.trim())
+            .map(v => DAYS.indexOf(v));
         })
       })
     new Setting(contentEl)
@@ -450,16 +447,20 @@ class RegularTaskInsertionModal extends Modal {
       .addButton(component => {
         component.setButtonText("OK")
           .onClick(async () => {
-            this.close();
             await this.insertText();
           });
       })
   }
 
   async insertText() {
+    if (this.days.length == 0 || this.days.contains(-1)) {
+      new Notice("Invalid day found");
+    }
+    noticeIfUndefined(this.to, "invalid 'to'");
+    noticeIfUndefined(this.from, "invalid 'from'");
     let text = "\n\n";
     for (const d of datetime.genDates(this.from!, this.to!)) {
-      if (d.toDate().getDay() !== this.day!) continue;
+      if (!this.days.contains(d.toDate().getDay())) continue;
       text += "- " + d.toString() + "\n";
       this.taskMD.split("\n").forEach(value => {
         text += "    " + value + "\n";
@@ -468,6 +469,7 @@ class RegularTaskInsertionModal extends Modal {
     const activeFile = this.app.workspace.getActiveFile();
     if (activeFile === null) return;
     await this.app.vault.append(activeFile, text);
+    this.close();
   }
 
   onClose() {
